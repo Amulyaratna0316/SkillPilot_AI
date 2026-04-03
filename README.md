@@ -74,7 +74,7 @@ After each session, generates a detailed report including:
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 - **Frontend:** HTML, CSS, Vanilla JavaScript
 - **Hand Tracking:** MediaPipe Hands (21 landmark detection)
@@ -98,7 +98,7 @@ After each session, generates a detailed report including:
 
 ---
 
-## 📊 Procedure Schema (Example)
+## Procedure Schema (Example)
 
 ```json
 {
