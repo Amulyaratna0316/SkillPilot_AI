@@ -1,4 +1,4 @@
-# SkillPilot_AI 
+
 # SkillPilot_AI — Real-Time Procedural Skill Intelligence System
 
 ##  Overview
