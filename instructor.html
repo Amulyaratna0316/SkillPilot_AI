@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SkillPilot_AI - Instructor Dashboard</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@400;600&family=Space+Mono&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <style>
+        :root {
+            --bg: #080c14;
+            --surface: #0d1421;
+            --surface2: #111827;
+            --border: #1e2d45;
+            --accent: #00e5ff;
+            --accent2: #7b2fff;
+            --success: #00ff9d;
+            --warn: #ffc233;
+            --danger: #ff3366;
+            --text: #e2eaf5;
+            --muted: #4a6080;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Rajdhani', sans-serif;
+            background-image: 
+                linear-gradient(to right, rgba(255,255,255,0.02) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 40px 40px;
+            overflow-x: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        h1, h2, h3, h4, .orbitron { font-family: 'Orbitron', sans-serif; }
+        .mono { font-family: 'Space Mono', monospace; }
+        .text-cyan { color: var(--accent); }
+        .flex { display: flex; }
+        .flex-col { display: flex; flex-direction: column; }
+        .text-center { text-align: center; }
+        .w-full { width: 100%; }
+
+        button {
+            background: var(--surface2);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 0.75rem 1.5rem;
+            font-family: 'Orbitron', sans-serif;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        button:hover {
+            border-color: var(--accent);
+            box-shadow: 0 0 10px rgba(0, 229, 255, 0.2);
+        }
+        button.primary {
+            background: rgba(0, 229, 255, 0.1);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        button.danger {
+            background: rgba(255, 51, 102, 0.1);
+            border-color: var(--danger);
+            color: var(--danger);
+        }
+
+        input, select, textarea {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 0.75rem;
+            font-family: 'Space Mono', monospace;
+            border-radius: 4px;
+            width: 100%;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .screen { display: none; flex: 1; flex-direction: column; align-items: center; padding: 2rem; overflow-y: auto;}
+
+        /* Navbar */
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 2rem;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            display: none; /* hidden on auth */
+        }
+        .nav-links { display: flex; gap: 1rem; }
+        .nav-tab {
+            padding: 0.5rem 1rem; cursor: pointer; font-family: 'Orbitron', sans-serif;
+            border-bottom: 2px solid transparent; transition: 0.3s;
+        }
+        .nav-tab.active { border-bottom: 2px solid var(--accent); color: var(--accent); }
+
+        /* Auth */
+        #auth-form {
+            background: var(--surface);
+            padding: 2.5rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            width: 400px;
+            margin-top: 5rem;
+        }
+
+        /* Builder Tab */
+        .cfg-card {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            position: relative;
+        }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+        .col-span-2 { grid-column: span 2; }
+        
+        pre { background: #000; border: 1px solid var(--border); padding: 1rem; overflow-x: auto; font-size: 0.85rem; }
+
+        /* Video Tab */
+        #video-preview { max-width: 100%; max-height: 400px; border: 1px solid var(--border); margin: 1rem 0;}
+        .loading-shimmer {
+            animation: shimmer 2s infinite linear;
+            background: linear-gradient(to right, var(--surface) 4%, var(--border) 25%, var(--surface) 36%);
+            background-size: 1000px 100%;
+        }
+        @keyframes shimmer { 0% { background-position: -1000px 0; } 100% { background-position: 1000px 0; } }
+
+        /* Reports Tab */
+        .report-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem; width: 100%; max-width: 1200px; }
+        .student-card { background: var(--surface); border: 1px solid var(--border); padding: 1.5rem; border-radius: 8px; }
+        .student-card:hover { border-color: var(--accent); }
+        .accuracy-bar { width: 100%; height: 6px; background: var(--surface2); margin: 1rem 0; }
+        .accuracy-fill { height: 100%; background: var(--accent); }
+
+        .modal {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+            justify-content: center; align-items: center; z-index: 100;
+        }
+        .modal-content { background: var(--surface); border: 1px solid var(--accent); padding: 2rem; width: 600px; max-height: 90vh; overflow-y: auto;}
+
+        /* Settings wrapper */
+        .settings-box { position: relative; display: inline-block; }
+        .settings-dropdown {
+            display: none; position: absolute; right: 0; top: 100%; background: var(--surface);
+            border: 1px solid var(--border); padding: 1rem; width: 300px; z-index: 50;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+        }
+        .settings-box:hover .settings-dropdown { display: block; }
+    </style>
+</head>
+<body>
+
+    <!-- Auth Screen -->
+    <div id="screen-auth" class="screen" style="display: flex;">
+        <h1 class="orbitron text-cyan" style="font-size: 3rem;">SkillPilot_AI</h1>
+        <h2 class="orbitron" style="margin-top: 1rem;">Instructor Portal</h2>
+        
+        <div id="auth-form" class="flex-col" style="gap: 1rem;">
+            <input type="text" id="auth-user" placeholder="Username (instructor)">
+            <input type="password" id="auth-pass" placeholder="Password (pilot2026)">
+            <p id="auth-error" class="text-cyan" style="display:none;">Invalid credentials</p>
+            <button class="primary" onclick="doLogin()">Authenticate</button>
+            <button onclick="window.location.href='index.html'">Return to App</button>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav id="nav-bar">
+        <h2 class="orbitron text-cyan">SkillPilot_AI</h2>
+        <div class="nav-links">
+            <div class="nav-tab active" onclick="switchTab('tab-builder')">Procedure Builder</div>
+            <div class="nav-tab" onclick="switchTab('tab-video')">AI Video Pipeline</div>
+            <div class="nav-tab" onclick="switchTab('tab-reports')">Student Reports</div>
+        </div>
+        <div style="display:flex; gap: 1rem; align-items: center;">
+            <div class="settings-box">
+                <button>⚙ Settings</button>
+                <div class="settings-dropdown">
+                    <label class="mono text-cyan">Gemini API Key</label>
+                    <input type="password" id="api-key-input" placeholder="AIzaSy..." style="margin-top:0.5rem;">
+                    <button class="primary w-full" style="margin-top:0.5rem;" onclick="saveApiKey()">Save</button>
+                </div>
+            </div>
+            <button class="danger" onclick="logout()">Logout</button>
+        </div>
+    </nav>
+
+    <!-- Tab 1: Builder -->
+    <div id="tab-builder" class="screen main-tab" style="max-width: 900px; margin: 0 auto; display: none;">
+        <h2 class="orbitron w-full" style="margin-bottom: 2rem;">Procedure Builder</h2>
+        
+        <div class="cfg-card w-full">
+            <div class="form-grid">
+                <div class="col-span-2">
+                    <label class="mono muted">Procedure Name</label>
+                    <input type="text" id="builder-proc-name" placeholder="E.g. Surgical Needle Grip">
+                </div>
+                <div class="col-span-2">
+                    <label class="mono muted">Domain</label>
+                    <select id="builder-domain">
+                        <option value="nursing">Nursing</option>
+                        <option value="dentistry">Dentistry</option>
+                        <option value="culinary">Culinary Arts</option>
+                        <option value="electrical">Electrical</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="w-full flex" style="justify-content: space-between; align-items:center; margin: 2rem 0 1rem 0;">
+            <h3 class="orbitron">Steps Definition</h3>
+            <button class="primary" onclick="addStepCard()">+ Add Step</button>
+        </div>
+
+        <div id="builder-steps" class="w-full"></div>
+
+        <div class="w-full flex" style="gap: 1rem; margin-top: 2rem;">
+            <button class="primary" onclick="generateSchema()">Generate Schema JSON</button>
+            <button onclick="alert('Preview Mode opened! (Stub for demonstration)')">Preview Procedure</button>
+        </div>
+
+        <div id="schema-output" class="w-full" style="display:none; margin-top: 2rem;">
+            <h3 class="orbitron" style="margin-bottom: 1rem;">Generated JSON</h3>
+            <pre id="schema-json" class="mono text-cyan"></pre>
+            <div class="flex" style="gap: 1rem; margin-top: 1rem;">
+                <button onclick="copySchema()">Copy JSON</button>
+                <button class="primary" onclick="saveProcedure()">💾 Save to LocalStorage</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 2: Video AI -->
+    <div id="tab-video" class="screen main-tab" style="max-width: 900px; margin: 0 auto;">
+        <h2 class="orbitron w-full">Upload Demonstration Video</h2>
+        <p class="mono muted w-full" style="margin-bottom: 2rem;">AI extracts procedure steps automatically</p>
+
+        <div class="cfg-card w-full text-center">
+            <input type="file" id="video-upload" accept="video/*" onchange="handleVideoUpload(event)" style="display:none;">
+            <button class="primary" onclick="document.getElementById('video-upload').click()">Select Video File</button>
+            <br>
+            <video id="demoVideo" controls style="display:none;"></video>
+            
+            <div id="ai-pipeline-actions" style="display:none; margin-top: 1rem;">
+                <button class="primary w-full" id="btn-extract" onclick="extractProcedures()">🤖 Extract Procedure Steps via Gemini</button>
+                <p id="extraction-status" class="mono text-cyan" style="margin-top: 1rem;"></p>
+            </div>
+        </div>
+
+        <div id="ai-results" class="w-full" style="display: none; margin-top: 2rem;">
+            <h3 class="orbitron" style="margin-bottom: 1rem;">Extracted Steps</h3>
+            <div id="extracted-steps-container"></div>
+            <button class="primary w-full" style="margin-top: 1rem;" onclick="convertExtractedToBuilder()">Convert to Procedure Schema</button>
+        </div>
+    </div>
+
+    <!-- Tab 3: Reports -->
+    <div id="tab-reports" class="screen main-tab flex-col">
+        <h2 class="orbitron w-full" style="margin-bottom: 2rem; max-width: 1200px;">Student Reports</h2>
+        
+        <div class="report-grid" id="reports-container">
+            <!-- Populated via JS -->
+        </div>
+    </div>
+
+    <!-- Report Modal -->
+    <div id="report-modal" class="modal">
+        <div class="modal-content flex-col">
+            <h2 class="orbitron text-cyan border-bottom" id="rm-name">Student Report</h2>
+            <div class="flex" style="gap: 2rem; margin: 1rem 0;">
+                <div>
+                    <p class="mono muted">PROCEDURE</p>
+                    <p class="orbitron" id="rm-proc" style="font-size: 1.2rem;"></p>
+                </div>
+                <div>
+                    <p class="mono muted">ACCURACY</p>
+                    <p class="orbitron text-cyan" id="rm-acc" style="font-size: 1.5rem;"></p>
+                </div>
+            </div>
+            
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; border: 1px solid var(--border);" class="mono">
+                <tr><th style="border: 1px solid var(--border); padding: 0.5rem;">Date</th><td id="rm-date" style="border: 1px solid var(--border); padding: 0.5rem;"></td></tr>
+                <tr><th style="border: 1px solid var(--border); padding: 0.5rem;">Time Elapsed</th><td id="rm-dur" style="border: 1px solid var(--border); padding: 0.5rem;"></td></tr>
+                <tr><th style="border: 1px solid var(--border); padding: 0.5rem;">Errors</th><td id="rm-err" style="border: 1px solid var(--border); padding: 0.5rem;"></td></tr>
+                <tr><th style="border: 1px solid var(--border); padding: 0.5rem;">Fatigue Events</th><td id="rm-fat" style="border: 1px solid var(--border); padding: 0.5rem;"></td></tr>
+            </table>
+
+            <div class="flex" style="gap: 1rem;">
+                <button class="primary w-full" onclick="downloadInstructorPDF()">Download PDF</button>
+                <button class="w-full" onclick="document.getElementById('report-modal').style.display='none'">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Initialization ---
+        // Provided API key per user instructions
+        const PREFILLED_KEY = "AIzaSyA_AQiew1sXhzatRFKkwjjblcR9Uhhjoo4";
+
+        document.addEventListener('DOMContentLoaded', () => {
+            let key = localStorage.getItem('geminiApiKey');
+            if(!key) {
+                key = PREFILLED_KEY;
+                localStorage.setItem('geminiApiKey', key);
+            }
+            document.getElementById('api-key-input').value = key;
+        });
+
+        // --- Authentication ---
+        function doLogin() {
+            const u = document.getElementById('auth-user').value;
+            const p = document.getElementById('auth-pass').value;
+            if (u === 'instructor' && p === 'pilot2026') {
+                document.getElementById('screen-auth').style.display = 'none';
+                document.querySelector('nav').style.display = 'flex';
+                switchTab('tab-builder');
+            } else {
+                document.getElementById('auth-error').style.display = 'block';
+            }
+        }
+
+        function logout() {
+            window.location.href = 'index.html';
+        }
+
+        // --- Navigation ---
+        function switchTab(id) {
+            document.querySelectorAll('.main-tab').forEach(t => t.style.display = 'none');
+            document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+            document.getElementById(id).style.display = 'flex';
+            event.currentTarget.classList.add('active');
+
+            if(id === 'tab-reports') loadReports();
+        }
+
+        function saveApiKey() {
+            localStorage.setItem('geminiApiKey', document.getElementById('api-key-input').value);
+            alert("API Key saved");
+        }
+
+        // --- TAB 1: PROCEDURE BUILDER ---
+        let stepCount = 0;
+
+        function addStepCard(mappedData = null) {
+            stepCount++;
+            const id = 'step_' + Date.now();
+            const div = document.createElement('div');
+            div.className = 'cfg-card w-full';
+            div.id = id;
+            
+            // Def values
+            const defName = mappedData ? mappedData.action_description : `Step ${stepCount}`;
+            const defMin = mappedData && mappedData.estimated_angle_range ? mappedData.estimated_angle_range.min : 30;
+            const defMax = mappedData && mappedData.estimated_angle_range ? mappedData.estimated_angle_range.max : 60;
+            const defZone = mappedData ? mappedData.zone.toLowerCase() : 'center';
+            const defInst = mappedData ? mappedData.instruction_for_student : 'Adjust grip';
+
+            div.innerHTML = `
+                <div class="flex" style="justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:0.5rem; margin-bottom:1rem;">
+                    <h4 class="orbitron text-cyan">Step Details (${stepCount})</h4>
+                    <button class="danger" style="padding:0.2rem 0.5rem; font-size:0.8rem;" onclick="document.getElementById('${id}').remove()">Remove</button>
+                </div>
+                <div class="form-grid">
+                    <div class="col-span-2">
+                        <label class="mono muted">Step Name / Description</label>
+                        <input type="text" class="b-name" value="${defName}">
+                    </div>
+                    <div>
+                        <label class="mono muted">Severity</label>
+                        <select class="b-sev"><option value="minor">Minor</option><option value="critical">Critical</option></select>
+                    </div>
+                    <div>
+                        <label class="mono muted">Required Zone</label>
+                        <select class="b-zone">
+                            <option value="left" ${defZone==='left'?'selected':''}>Left</option>
+                            <option value="center" ${defZone==='center'?'selected':''}>Center</option>
+                            <option value="right" ${defZone==='right'?'selected':''}>Right</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mono muted">Min Angle (°)</label>
+                        <input type="number" class="b-min" value="${defMin}" min="0" max="180">
+                    </div>
+                    <div>
+                        <label class="mono muted">Max Angle (°)</label>
+                        <input type="number" class="b-max" value="${defMax}" min="0" max="180">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="mono muted">Dwell Time (seconds)</label>
+                        <input type="number" class="b-dwell" value="2" min="1">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="mono muted">Minor Alert Message</label>
+                        <input type="text" class="b-aminor" value="${defInst}">
+                    </div>
+                    <div class="col-span-2">
+                        <label class="mono muted">Critical Alert Message</label>
+                        <input type="text" class="b-acrit" value="STOP — Incorrect ${defInst.toLowerCase()}">
+                    </div>
+                </div>
+            `;
+            document.getElementById('builder-steps').appendChild(div);
+        }
+
+        function generateSchema() {
+            const procName = document.getElementById('builder-proc-name').value || "New Procedure";
+            const domain = document.getElementById('builder-domain').value;
+            
+            const stepsDivs = document.querySelectorAll('#builder-steps .cfg-card');
+            const steps = Array.from(stepsDivs).map((div, i) => {
+                return {
+                    id: i + 1,
+                    name: div.querySelector('.b-name').value,
+                    severity: div.querySelector('.b-sev').value,
+                    requirements: {
+                        grip_angle: {
+                            min: parseInt(div.querySelector('.b-min').value),
+                            max: parseInt(div.querySelector('.b-max').value),
+                            joints: [4, 0, 8] // default wrist-thumb-index
+                        },
+                        zone: div.querySelector('.b-zone').value,
+                        dwell_time: parseInt(div.querySelector('.b-dwell').value)
+                    },
+                    alert_minor: div.querySelector('.b-aminor').value,
+                    alert_critical: div.querySelector('.b-acrit').value
+                };
+            });
+
+            const schema = { procedure: procName, domain: domain, steps: steps };
+            document.getElementById('schema-json').innerText = JSON.stringify(schema, null, 2);
+            document.getElementById('schema-output').style.display = 'block';
+            return schema;
+        }
+
+        function copySchema() {
+            navigator.clipboard.writeText(document.getElementById('schema-json').innerText);
+            alert("JSON copied to clipboard!");
+        }
+
+        function saveProcedure() {
+            const sc = generateSchema();
+            let arr = JSON.parse(localStorage.getItem('customProcedures') || '[]');
+            arr.push(sc);
+            localStorage.setItem('customProcedures', JSON.stringify(arr));
+            alert("Procedure saved successfully!");
+        }
+
+        // --- TAB 2: VIDEO TO PROCEDURE (AI) ---
+        function handleVideoUpload(e) {
+            const file = e.target.files[0];
+            if(!file) return;
+            const url = URL.createObjectURL(file);
+            const vid = document.getElementById('demoVideo');
+            vid.src = url;
+            vid.style.display = 'block';
+            vid.onloadeddata = () => {
+                document.getElementById('ai-pipeline-actions').style.display = 'block';
+            };
+        }
+
+        async function extractProcedures() {
+            const apiKey = localStorage.getItem('geminiApiKey');
+            if(!apiKey) return alert("Please save your Gemini API Key in settings first.");
+            
+            const video = document.getElementById('demoVideo');
+            const status = document.getElementById('extraction-status');
+            const btn = document.getElementById('btn-extract');
+            
+            btn.disabled = true;
+            status.innerText = "Extracting frames...";
+            
+            // Extract 3 frames across video duration for demo/cost safety
+            const dur = video.duration;
+            const timestamps = dur > 9 ? [dur*0.2, dur*0.5, dur*0.8] : [dur*0.5];
+            
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 640; canvas.height = 360; // downscale for API
+
+            const extractedData = [];
+
+            for (let i = 0; i < timestamps.length; i++) {
+                status.innerText = `Analyzing frame ${i+1}/${timestamps.length} via Gemini Vision API...`;
+                
+                video.currentTime = timestamps[i];
+                await new Promise(r => { video.onseeked = r; setTimeout(r, 500); }); // wait for seek render
+                
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const base64Data = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+                
+                // Call Gemini
+                try {
+                    const prompt = `This is frame ${i+1} of a vocational skill training video. Analyze the hand/tool position visible. Return ONLY valid JSON (do not use markdown blocks):
+{
+  "step_number": ${i+1},
+  "action_description": "short string action",
+  "instruction_for_student": "short instructional string",
+  "estimated_angle_range": {"min": 30, "max": 60},
+  "zone": "center"
+}`;
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            contents: [{
+                                parts: [
+                                    {inline_data: {mime_type: "image/jpeg", data: base64Data}},
+                                    {text: prompt}
+                                ]
+                            }]
+                        })
+                    });
+                    
+                    const data = await res.json();
+                    let textResult = data.candidates[0].content.parts[0].text;
+                    // clean up markdown if gemini ignored prompt
+                    textResult = textResult.replace(/```json/g, '').replace(/```/g, '').trim();
+                    const parsed = JSON.parse(textResult);
+                    extractedData.push(parsed);
+
+                } catch (err) {
+                    console.error("Gemini Frame analysis error:", err);
+                }
+            }
+
+            // Render Extracted Cards
+            status.innerText = "Processing complete!";
+            btn.disabled = false;
+            
+            const cont = document.getElementById('extracted-steps-container');
+            cont.innerHTML = '';
+            
+            extractedData.forEach(d => {
+                const card = document.createElement('div');
+                card.className = "cfg-card";
+                card.innerHTML = `
+                    <h4 class="orbitron text-cyan">Step ${d.step_number}: ${d.action_description}</h4>
+                    <p class="mono muted" style="margin: 0.5rem 0;">Instruction: ${d.instruction_for_student}</p>
+                    <p class="mono muted">Est. Angle: ${d.estimated_angle_range.min}°–${d.estimated_angle_range.max}° | Zone: ${(d.zone || 'center').toUpperCase()}</p>
+                `;
+                cont.appendChild(card);
+            });
+            
+            document.getElementById('ai-results').style.display = 'block';
+
+            // Store in global scope so convertExtractedToBuilder can access it
+            window._lastExtractedData = extractedData;
+        }
+
+        function convertExtractedToBuilder() {
+            const data = window._lastExtractedData;
+            if(!data) return;
+            switchTab('tab-builder');
+            document.getElementById('builder-steps').innerHTML = ''; // clear existing
+            document.getElementById('builder-proc-name').value = "AI Generated Procedure";
+            stepCount = 0;
+            data.forEach(step => addStepCard(step));
+        }
+
+        // --- TAB 3: REPORTS ---
+        const DEMO_REPORTS = [
+            {name: "Priya Sharma", procedure: "Surgical Needle Grip", accuracy: 78, date: "2026-04-03", duration: "320s", errors: 4, fatigueEvents: 0},
+            {name: "Rahul Mehta", procedure: "IV Cannula Insertion", accuracy: 52, date: "2026-04-02", duration: "250s", errors: 8, fatigueEvents: 2},
+            {name: "Ananya Singh", procedure: "Dental Probe Hold", accuracy: 91, date: "2026-04-01", duration: "180s", errors: 1, fatigueEvents: 0},
+            {name: "Karan Patel", procedure: "Wire Stripping Safety", accuracy: 67, date: "2026-04-03", duration: "210s", errors: 6, fatigueEvents: 1}
+        ];
+
+        let currentModalReport = null;
+
+        function loadReports() {
+            const container = document.getElementById('reports-container');
+            container.innerHTML = '';
+            
+            const allReports = [...DEMO_REPORTS];
+            
+            try {
+                const ls = JSON.parse(localStorage.getItem('lastSession'));
+                if(ls) {
+                    allReports.unshift({ // Add to top
+                        name: "Guest Student",
+                        procedure: ls.procedure,
+                        accuracy: ls.accuracy,
+                        date: new Date(ls.date).toISOString().split('T')[0],
+                        duration: Math.round(ls.duration/1000) + 's',
+                        errors: ls.errors ? ls.errors.length : 0,
+                        fatigueEvents: ls.fatigueEvents ? ls.fatigueEvents.length : 0
+                    });
+                }
+            } catch(e) {}
+
+            allReports.forEach(r => {
+                let colorClass = 'var(--success)';
+                if(r.accuracy < 85) colorClass = 'var(--warn)';
+                if(r.accuracy < 60) colorClass = 'var(--danger)';
+
+                const card = document.createElement('div');
+                card.className = 'student-card';
+                card.innerHTML = `
+                    <div class="flex" style="justify-content:space-between; align-items:flex-start;">
+                        <div>
+                            <h3 class="orbitron">${r.name}</h3>
+                            <p class="mono muted" style="font-size:0.9rem; margin-top:0.3rem;">Last: ${r.date}</p>
+                        </div>
+                        <h2 class="orbitron" style="color: ${colorClass};">${r.accuracy}%</h2>
+                    </div>
+                    <p class="mono text-cyan" style="margin-top: 1rem;">${r.procedure}</p>
+                    
+                    <div class="accuracy-bar"><div class="accuracy-fill" style="width: ${r.accuracy}%; background: ${colorClass};"></div></div>
+                    
+                    <button class="w-full" style="margin-top: 0.5rem;" onclick='openReportModal(${JSON.stringify(r)})'>View Full Report</button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function openReportModal(reportObj) {
+            currentModalReport = reportObj;
+            document.getElementById('rm-name').innerText = reportObj.name + " Report";
+            document.getElementById('rm-proc').innerText = reportObj.procedure;
+            document.getElementById('rm-acc').innerText = reportObj.accuracy + "%";
+            document.getElementById('rm-date').innerText = reportObj.date;
+            document.getElementById('rm-dur').innerText = reportObj.duration;
+            document.getElementById('rm-err').innerText = reportObj.errors;
+            document.getElementById('rm-fat').innerText = reportObj.fatigueEvents;
+            
+            document.getElementById('report-modal').style.display = 'flex';
+        }
+
+        function downloadInstructorPDF() {
+            if(!currentModalReport) return;
+            const r = currentModalReport;
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(20);
+            doc.text("SkillPilot_AI - Instructor Assessment Report", 10, 20);
+            
+            doc.setFontSize(12);
+            doc.setFont("helvetica", "normal");
+            doc.text(`Student: ${r.name}`, 10, 30);
+            doc.text(`Date: ${r.date}`, 10, 38);
+            doc.text(`Procedure: ${r.procedure}`, 10, 46);
+            
+            doc.text(`Accuracy: ${r.accuracy}%`, 10, 60);
+            doc.text(`Duration: ${r.duration}`, 10, 68);
+            doc.text(`Total Errors Recorded: ${r.errors}`, 10, 76);
+            doc.text(`Fatigue Events: ${r.fatigueEvents}`, 10, 84);
+            
+            doc.save(`${r.name.replace(' ','_')}_Report.pdf`);
+        }
+    </script>
+</body>
+</html>

@@ -4,294 +4,1637 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Real-Time Hand Tracking</title>
+    <title>SkillPilot_AI</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@400;600&family=Space+Mono&display=swap"
+        rel="stylesheet">
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
+    <!-- Three.js for 3D Hand Model -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+
     <style>
-        body {
+        :root {
+            --bg: #080c14;
+            --surface: #0d1421;
+            --surface2: #111827;
+            --border: #1e2d45;
+            --accent: #00e5ff;
+            --accent2: #7b2fff;
+            --success: #00ff9d;
+            --warn: #ffc233;
+            --danger: #ff3366;
+            --text: #e2eaf5;
+            --muted: #4a6080;
+        }
+
+        * {
+            box-sizing: border-box;
             margin: 0;
             padding: 0;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Rajdhani', sans-serif;
+            background-image:
+                linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+            background-size: 40px 40px;
+            overflow-x: hidden;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4,
+        .orbitron {
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        .mono {
+            font-family: 'Space Mono', monospace;
+        }
+
+        .screen {
+            display: none;
+            min-height: 100vh;
+            flex-direction: column;
+            padding: 2rem;
+            align-items: center;
+        }
+
+        /* Utils */
+        .text-cyan {
+            color: var(--accent);
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .flex {
+            display: flex;
+        }
+
+        .flex-col {
             display: flex;
             flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            background-color: #121212;
-            color: #ffffff;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            overflow: hidden;
         }
 
-        h1 {
-            margin-bottom: 20px;
-            font-size: 24px;
+        .space-y-4>*+* {
+            margin-top: 1rem;
+        }
+
+        .gap-4 {
+            gap: 1rem;
+        }
+
+        .w-full {
+            width: 100%;
+        }
+
+        button {
+            background: var(--surface2);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 0.75rem 1.5rem;
+            font-family: 'Orbitron', sans-serif;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+
+        button:hover {
+            border-color: var(--accent);
+            box-shadow: 0 0 10px rgba(0, 229, 255, 0.2);
+        }
+
+        button.primary {
+            background: rgba(0, 229, 255, 0.1);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        input {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 0.75rem;
+            font-family: 'Space Mono', monospace;
+            border-radius: 4px;
+            width: 100%;
+            margin-bottom: 1rem;
+        }
+
+        /* Landing */
+        .domain-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-top: 3rem;
+            max-width: 800px;
+        }
+
+        .domain-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            padding: 2rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.3s, border-color 0.3s;
             text-align: center;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
-            z-index: 30;
         }
 
-        .container {
-            position: relative;
-            width: 1280px;
-            height: 720px;
-            max-width: 95vw;
-            max-height: 85vh;
-            background-color: #000;
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
-            overflow: hidden;
+        .domain-card:hover {
+            border-color: var(--accent);
+            transform: scale(1.05);
+        }
+
+        .domain-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        /* Auth */
+        #auth-form {
+            background: var(--surface);
+            padding: 2rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            width: 400px;
+            margin-top: 2rem;
+        }
+
+        /* Pre-Session */
+        .procedure-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            width: 600px;
+        }
+
+        .procedure-card.expanded {
+            border-color: var(--accent);
+        }
+
+        .procedure-actions {
+            display: none;
+            margin-top: 1rem;
+            gap: 1rem;
+        }
+
+        .procedure-card.expanded .procedure-actions {
             display: flex;
-            align-items: center;
-            justify-content: center;
         }
 
-        video {
-            position: absolute;
+        /* Modal */
+        #steps-modal {
+            display: none;
+            position: fixed;
             top: 0;
             left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            transform: scaleX(-1);
-            /* Mirror view */
-        }
-
-        canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            transform: scaleX(-1);
-            /* Mirror view to match video */
-            z-index: 10;
-        }
-
-        .status {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 1.5rem;
-            color: #ddd;
-            z-index: 20;
+            right: 0;
+            bottom: 0;
             background: rgba(0, 0, 0, 0.8);
-            padding: 20px 30px;
-            border-radius: 12px;
-            text-align: center;
-            pointer-events: none;
-            transition: opacity 0.3s ease;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
         }
 
-        .status.hidden {
-            opacity: 0;
+        .modal-content {
+            background: var(--surface);
+            border: 1px solid var(--accent);
+            padding: 2rem;
+            width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
         }
 
-        .error-msg {
-            color: #ff4d4d;
+        /* Session */
+        #screen-session {
+            padding: 0;
+            height: 100vh;
+            flex-direction: row;
+        }
+
+        .panel {
+            padding: 1rem;
+            height: 100%;
+            border-right: 1px solid var(--border);
+            overflow-y: auto;
+        }
+
+        .panel-left {
+            width: 280px;
+            background: var(--bg);
+        }
+
+        .panel-center {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            background: #000;
+            position: relative;
+        }
+
+        .panel-right {
+            width: 300px;
+            background: var(--bg);
+            border-right: none;
+            border-left: 1px solid var(--border);
+        }
+
+        .step-item {
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            margin-bottom: 0.5rem;
+            background: var(--surface);
+        }
+
+        .step-item.active {
+            border-left: 4px solid var(--accent);
+            background: var(--surface2);
+        }
+
+        .step-item.complete {
+            border-left: 4px solid var(--success);
+        }
+
+        .step-item.skipped {
+            border-left: 4px solid var(--warn);
+        }
+
+        .badge {
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 4px;
             font-weight: bold;
         }
 
-        .loading-spinner {
-            display: inline-block;
-            width: 35px;
-            height: 35px;
-            border: 4px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top-color: #fff;
-            animation: spin 1s ease-in-out infinite;
-            margin-bottom: 15px;
+        .badge-critical {
+            background: var(--danger);
+            color: #fff;
         }
 
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
+        .badge-minor {
+            background: var(--warn);
+            color: #000;
+        }
+
+        .ai-coach-box {
+            margin-top: 2rem;
+            padding: 1rem;
+            background: var(--surface);
+            border: 1px solid var(--accent2);
+            color: var(--accent);
+        }
+
+        .fatigue-banner {
+            display: none;
+            margin-top: 1rem;
+            padding: 1rem;
+            background: var(--danger);
+            color: #fff;
+            text-align: center;
+            font-weight: bold;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.7;
+            }
+
+            100% {
+                opacity: 1;
             }
         }
-    </style>
 
-    <!-- MediaPipe Hands -->
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"
-        crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"
-        crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+        #sessionCanvas {
+            width: 100%;
+            height: calc(100% - 100px);
+            object-fit: contain;
+        }
+
+        .session-controls {
+            height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            padding: 1rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .progress-bar-bg {
+            width: 100%;
+            height: 8px;
+            background: var(--surface);
+            margin-top: 0.5rem;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: var(--accent);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        .param-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .param-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--accent);
+            font-family: 'Space Mono';
+        }
+
+        .zone-display {
+            display: flex;
+            gap: 4px;
+            margin-top: 0.5rem;
+        }
+
+        .zone-box {
+            flex: 1;
+            height: 20px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            text-align: center;
+            font-size: 0.7rem;
+            line-height: 20px;
+        }
+
+        .zone-box.active {
+            background: var(--accent);
+            color: #000;
+        }
+
+        @keyframes shake {
+            0% {
+                transform: translateX(0);
+            }
+
+            25% {
+                transform: translateX(-5px);
+            }
+
+            50% {
+                transform: translateX(5px);
+            }
+
+            75% {
+                transform: translateX(-5px);
+            }
+
+            100% {
+                transform: translateX(0);
+            }
+        }
+
+        .alert-critical {
+            background: var(--danger) !important;
+            color: white;
+            animation: shake 0.4s;
+        }
+
+        .alert-minor {
+            background: var(--warn) !important;
+            color: black;
+        }
+
+        /* Report & Replay */
+        .report-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        .report-table th,
+        .report-table td {
+            border: 1px solid var(--border);
+            padding: 0.5rem;
+            text-align: left;
+        }
+
+        .replay-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            width: 100%;
+            margin-top: 1rem;
+        }
+
+        .replay-canvas-container {
+            background: #000;
+            border: 1px solid var(--border);
+            height: 400px;
+            position: relative;
+        }
+
+        /* 3D Model Containers */
+        .three-container {
+            width: 100%;
+            height: 300px;
+            background: #000;
+            border: 1px solid var(--border);
+            margin: 1rem 0;
+            position: relative;
+            overflow: hidden;
+            border-radius: 8px;
+        }
+
+        #live-3d-view {
+            height: 180px;
+            margin-top: 0.5rem;
+            border: 1px solid var(--accent);
+            position: relative;
+        }
+
+        .three-label {
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            background: rgba(0, 0, 0, 0.7);
+            color: var(--accent);
+            padding: 2px 6px;
+            font-size: 0.6rem;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .replay-canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .timeline-container {
+            width: 100%;
+            margin-top: 1rem;
+        }
+
+        input[type="range"] {
+            /* Fix for compatibility warning */
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 40px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            outline: none;
+            margin: 0;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 10px;
+            height: 40px;
+            background: var(--text);
+            cursor: pointer;
+        }
+    </style>
 </head>
 
 <body>
-    <h1>Real-Time Hand Tracking</h1>
-    <div class="container">
-        <div id="statusIndicator" class="status">
-            <div class="loading-spinner"></div><br>
-            Initializing MediaPipe...
+
+    <div id="screen-landing" class="screen" style="display: flex;">
+        <h1 class="text-cyan orbitron" style="font-size: 3rem; margin-top: 2rem;">SkillPilot_AI</h1>
+        <p style="font-size: 1.2rem; margin-top: 0.5rem;" class="text-center">Real-Time Procedural Skill Coach — Powered
+            by MediaPipe ML</p>
+        <p class="mono text-cyan" style="margin-top: 1rem;">15,000 ITI Institutes. 1.5 Crore Students. One AI Coach.</p>
+
+        <div class="domain-grid">
+            <div class="domain-card" onclick="selectDomain('nursing')">
+                <div class="domain-icon">🏥</div>
+                <h2 class="orbitron text-cyan">Nursing</h2>
+                <p class="muted">Surgical grips, IV insertion, wound care</p>
+            </div>
+            <div class="domain-card" onclick="selectDomain('dentistry')">
+                <div class="domain-icon">🦷</div>
+                <h2 class="orbitron text-cyan">Dentistry</h2>
+                <p class="muted">Probe handling, drill positioning, suturing</p>
+            </div>
+            <div class="domain-card" onclick="selectDomain('culinary')">
+                <div class="domain-icon">🍳</div>
+                <h2 class="orbitron text-cyan">Culinary Arts</h2>
+                <p class="muted">Knife grip, cutting technique, plating</p>
+            </div>
+            <div class="domain-card" onclick="selectDomain('electrical')">
+                <div class="domain-icon">⚡</div>
+                <h2 class="orbitron text-cyan">Electrical</h2>
+                <p class="muted">Wire stripping, soldering, circuit assembly</p>
+            </div>
         </div>
-        <video id="webcam" autoplay playsinline></video>
-        <canvas id="output_canvas"></canvas>
+    </div>
+
+    <div id="screen-auth" class="screen">
+        <button style="align-self: flex-start;" onclick="showScreen('screen-landing')">← Back</button>
+        <h1 class="orbitron text-cyan" style="margin-top: 2rem;">Domain: <span id="auth-domain-label"></span></h1>
+
+        <div style="display: flex; gap: 2rem; margin-top: 3rem;">
+            <button class="primary" style="font-size: 1.5rem;" onclick="showAuthForm('student')">Student Login</button>
+            <button style="font-size: 1.5rem;" onclick="showAuthForm('instructor')">Instructor Login</button>
+        </div>
+
+        <div id="auth-form" style="display: none;">
+            <h3 class="orbitron text-cyan" id="auth-form-title" style="margin-bottom: 1rem;"></h3>
+            <input type="text" id="auth-user" placeholder="Username">
+            <input type="password" id="auth-pass" placeholder="Password">
+            <p id="auth-error" class="text-cyan" style="display:none; margin-bottom: 1rem;">Invalid credentials</p>
+            <button class="w-full primary" onclick="doLogin()">Login</button>
+        </div>
+    </div>
+
+    <div id="screen-pre-session" class="screen">
+        <button style="align-self: flex-start;" onclick="showScreen('screen-auth')">← Back</button>
+        <h1 class="orbitron text-cyan" style="margin: 2rem 0;">Select Procedure</h1>
+        <div id="procedure-list" class="flex-col gap-4"></div>
+    </div>
+
+    <div id="steps-modal">
+        <div class="modal-content flex-col">
+            <h2 class="orbitron text-cyan border-bottom" id="modal-title">Procedure Steps</h2>
+            <div id="modal-3d-view" class="three-container">
+                <div class="three-label">3D IDEAL MODEL PREVIEW</div>
+            </div>
+            <div id="modal-steps" style="margin: 1rem 0; max-height: 300px; overflow-y: auto;" class="flex-col gap-4 mono"></div>
+            <button onclick="document.getElementById('steps-modal').style.display='none'">Close</button>
+        </div>
+    </div>
+
+    <div id="screen-session" class="screen">
+        <div class="panel panel-left">
+            <h3 class="orbitron text-cyan" style="margin-bottom: 1rem;">Procedure Steps</h3>
+            <div id="session-checklist"></div>
+
+            <div class="ai-coach-box">
+                <h4 class="orbitron">AI Coach</h4>
+                <p id="ai-coach-text" class="mono" style="margin-top: 0.5rem;">Awaiting session start...</p>
+            </div>
+
+            <div id="fatigue-banner" class="fatigue-banner">
+                ⚠ FATIGUE DETECTED<br>Rest <span id="fatigue-timer">30</span>s
+            </div>
+        </div>
+
+        <div class="panel panel-center">
+            <div
+                style="position: absolute; top: 1rem; left: 1rem; right: 1rem; display: flex; justify-content: space-between; z-index: 10;">
+                <div>
+                    <h2 class="orbitron text-cyan" id="live-proc-name" style="text-shadow: 0 0 5px black;"></h2>
+                    <h4 class="mono" id="live-step-name" style="text-shadow: 0 0 5px black;"></h4>
+                </div>
+                <div style="text-align: right; text-shadow: 0 0 5px black;">
+                    <div class="mono" id="live-timer">00:00</div>
+                    <div class="orbitron text-cyan" id="live-accuracy" style="font-size: 1.5rem;">100%</div>
+                </div>
+            </div>
+
+            <video id="videoElement" autoplay playsinline style="display:none;"></video>
+            <canvas id="sessionCanvas" width="640" height="480"></canvas>
+
+            <div class="progress-bar-bg">
+                <div id="step-progress-fill" class="progress-bar-fill"></div>
+            </div>
+
+            <div class="session-controls">
+                <button onclick="pauseSession()" id="btn-pause">⏸ Pause</button>
+                <button onclick="resetSession()">🔄 Reset</button>
+                <button class="primary" onclick="forceCompleteSession()">✅ Complete Session</button>
+            </div>
+        </div>
+
+        <div class="panel panel-right">
+            <h3 class="orbitron text-cyan" style="margin-bottom: 1rem;">Live Analysis</h3>
+
+            <div class="param-card" style="padding: 0.5rem;">
+                <div class="mono muted" style="font-size: 0.6rem; margin-bottom: 0.3rem;">IDEAL ALIGNMENT GUIDE (3D)</div>
+                <div id="live-3d-view" class="three-container" style="height: 150px; margin: 0;">
+                    <div class="three-label">Target Pose</div>
+                </div>
+            </div>
+
+            <div style="margin-top: 1rem; margin-bottom: 1rem;">
+                <label class="mono text-cyan" style="font-size:0.8rem;">⚙ Gemini API Key</label>
+                <input type="password" id="api-key-input" placeholder="Paste API key here"
+                    style="padding: 0.4rem; margin-top: 0.2rem;" onchange="saveApiKey()">
+            </div>
+
+            <div class="param-card">
+                <div class="mono muted">GRIP ANGLE</div>
+                <div class="param-value" id="ui-angle">0°</div>
+                <div class="mono" id="ui-angle-target" style="font-size: 0.8rem;">Target: --</div>
+            </div>
+
+            <div class="param-card">
+                <div class="mono muted">HAND ZONE</div>
+                <div class="zone-display">
+                    <div class="zone-box" id="zone-left">LEFT</div>
+                    <div class="zone-box" id="zone-center">CENTER</div>
+                    <div class="zone-box" id="zone-right">RIGHT</div>
+                </div>
+                <div class="mono" id="ui-zone-target" style="font-size: 0.8rem; margin-top: 0.5rem;">Target: --</div>
+            </div>
+
+            <div class="param-card">
+                <div class="mono muted">DWELL TIMER</div>
+                <div class="param-value" id="ui-dwell">0.0s</div>
+            </div>
+
+            <div class="param-card">
+                <div class="mono muted">FATIGUE MONITOR</div>
+                <canvas id="fatigueCanvas" width="260" height="80"
+                    style="background:#000; width: 100%; border:1px solid var(--border);"></canvas>
+            </div>
+
+            <div class="param-card" id="ui-alert-box">
+                <div class="mono muted">CURRENT ALERT</div>
+                <div id="ui-alert-msg" style="margin-top: 0.5rem; font-weight: bold;">--</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="screen-report" class="screen" style="max-width: 900px; margin: 0 auto;">
+        <h1 class="orbitron text-cyan" style="margin-bottom: 2rem;">Session Complete</h1>
+        <h2 id="report-proc-name" class="mono text-center"></h2>
+
+        <div style="display: flex; gap: 2rem; margin: 2rem 0; width: 100%; justify-content: center;">
+            <div class="param-card text-center" style="width: 200px;">
+                <div class="muted mono">ACCURACY</div>
+                <div id="report-accuracy" class="orbitron text-cyan" style="font-size: 3rem;"></div>
+                <div id="report-rating" class="mono" style="font-weight: bold; margin-top: 0.5rem;"></div>
+            </div>
+            <div class="param-card text-center" style="width: 200px;">
+                <div class="muted mono">DURATION</div>
+                <div id="report-duration" class="orbitron" style="font-size: 2rem; margin-top: 0.5rem;"></div>
+            </div>
+            <div class="param-card text-center" style="width: 200px;">
+                <div class="muted mono">ERRORS</div>
+                <div id="report-error-count" class="orbitron text-cyan" style="font-size: 2rem; margin-top: 0.5rem;">
+                </div>
+            </div>
+        </div>
+
+        <h3 class="orbitron text-cyan w-full">Error Log</h3>
+        <table class="report-table mono text-sm w-full" id="report-table-body">
+            <tr>
+                <th>Time</th>
+                <th>Step</th>
+                <th>Severity</th>
+                <th>Message</th>
+            </tr>
+        </table>
+
+        <div style="display: flex; gap: 1rem; margin-top: 3rem;">
+            <button class="primary" onclick="downloadPDF()">📥 Download PDF Report</button>
+            <button onclick="setupReplay()">🔍 View Replay Analysis</button>
+            <button onclick="showScreen('screen-pre-session')">🏠 Home</button>
+        </div>
+    </div>
+
+    <div id="screen-replay" class="screen" style="max-width: 1200px; margin: 0 auto; width: 100%;">
+        <button style="align-self: flex-start;" onclick="showScreen('screen-report')">← Back to Report</button>
+        <h1 class="orbitron text-cyan" style="margin: 1rem 0;">Replay Analysis</h1>
+
+        <div class="replay-grid">
+            <div>
+                <h3 class="orbitron text-center" style="margin-bottom: 0.5rem;">Your Performance</h3>
+                <div class="replay-canvas-container">
+                    <canvas id="replayStudent" class="replay-canvas" width="640" height="480"></canvas>
+                </div>
+            </div>
+            <div>
+                <h3 class="orbitron text-center" style="margin-bottom: 0.5rem;">Ideal Technique</h3>
+                <div class="replay-canvas-container">
+                    <canvas id="replayIdeal" class="replay-canvas" width="640" height="480"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="timeline-container">
+            <input type="range" id="replayTimeline" min="0" value="0" step="1">
+            <div class="flex" style="justify-content: center; gap: 1rem; margin-top: 1rem;">
+                <button onclick="scrubReplay(-5)">⏪ -5s</button>
+                <button class="primary" id="btn-replay-play" onclick="toggleReplay()">⏯ Play</button>
+                <button onclick="scrubReplay(5)">⏩ +5s</button>
+            </div>
+        </div>
+
+        <div class="ai-coach-box w-full" style="margin-top: 2rem;">
+            <h3 class="orbitron">AI Coach Post-Session Analysis</h3>
+            <div id="ai-replay-analysis" class="mono" style="margin-top: 1rem; white-space: pre-wrap;">Generating
+                analysis...</div>
+        </div>
     </div>
 
     <script>
-        const videoElement = document.getElementById('webcam');
-        const canvasElement = document.getElementById('output_canvas');
-        const canvasCtx = canvasElement.getContext('2d');
-        const statusIndicator = document.getElementById('statusIndicator');
+        // ==========================================
+        // DATA PROCEDURES
+        // ==========================================
+        const PROCEDURES = {
+            n1: {
+                procedure: "Surgical Needle Grip",
+                domain: "nursing",
+                steps: [
+                    { id: 1, name: "Tool Preparation", severity: "critical", requirements: { grip_angle: { min: 60, max: 90, joints: [4, 0, 8] }, zone: "center", dwell_time: 2 }, alert_minor: "Open your hand wider before approaching", alert_critical: "STOP — incorrect approach angle, risk of needle stick" },
+                    { id: 2, name: "Anchor Hand Position", severity: "critical", requirements: { grip_angle: { min: 25, max: 45, joints: [4, 0, 8] }, zone: "center", dwell_time: 3 }, alert_minor: "Rotate wrist 10° clockwise to correct grip", alert_critical: "STOP — grip angle unsafe, needle control compromised" },
+                    { id: 3, name: "Fulcrum Positioning", severity: "minor", requirements: { grip_angle: { min: 30, max: 50, joints: [4, 0, 8] }, zone: "right", dwell_time: 2 }, alert_minor: "Move hand to right side of workspace", alert_critical: "Fulcrum incorrect — reposition before proceeding" },
+                    { id: 4, name: "Needle Drive", severity: "critical", requirements: { grip_angle: { min: 20, max: 40, joints: [4, 0, 8] }, zone: "center", dwell_time: 4 }, alert_minor: "Maintain steady grip pressure throughout drive", alert_critical: "STOP — tremor detected during needle drive, halt procedure" }
+                ]
+            },
+            n2: {
+                procedure: "IV Cannula Insertion",
+                domain: "nursing",
+                steps: [
+                    { id: 1, name: "Vein Identification Position", severity: "minor", requirements: { grip_angle: { min: 40, max: 70, joints: [4, 0, 8] }, zone: "center", dwell_time: 2 }, alert_minor: "Flatten your approach angle", alert_critical: "Incorrect vein approach — risk of missed insertion" },
+                    { id: 2, name: "Bevel-Up Grip", severity: "critical", requirements: { grip_angle: { min: 15, max: 30, joints: [4, 0, 8] }, zone: "center", dwell_time: 3 }, alert_minor: "Lower your wrist angle for bevel-up position", alert_critical: "STOP — bevel not up, insertion will fail" },
+                    { id: 3, name: "Advancement Control", severity: "critical", requirements: { grip_angle: { min: 10, max: 25, joints: [4, 0, 8] }, zone: "center", dwell_time: 4 }, alert_minor: "Slow down advancement speed", alert_critical: "STOP — angle too steep, will puncture posterior wall" }
+                ]
+            },
+            d1: {
+                procedure: "Dental Probe Hold",
+                domain: "dentistry",
+                steps: [
+                    { id: 1, name: "Modified Pen Grasp", severity: "critical", requirements: { grip_angle: { min: 35, max: 55, joints: [4, 0, 8] }, zone: "center", dwell_time: 2 }, alert_minor: "Adjust to modified pen grasp position", alert_critical: "STOP — incorrect grasp type, probe control impossible" },
+                    { id: 2, name: "Finger Rest Placement", severity: "minor", requirements: { grip_angle: { min: 30, max: 50, joints: [4, 0, 8] }, zone: "right", dwell_time: 3 }, alert_minor: "Place ring finger on adjacent tooth as fulcrum", alert_critical: "No finger rest — patient safety risk" },
+                    { id: 3, name: "Insertion Angle", severity: "critical", requirements: { grip_angle: { min: 15, max: 35, joints: [4, 0, 8] }, zone: "center", dwell_time: 3 }, alert_minor: "Angle probe parallel to tooth long axis", alert_critical: "STOP — probe angle will lacerate sulcular tissue" }
+                ]
+            },
+            e1: {
+                procedure: "Wire Stripping Safety",
+                domain: "electrical",
+                steps: [
+                    { id: 1, name: "Tool Grip", severity: "minor", requirements: { grip_angle: { min: 45, max: 75, joints: [4, 0, 8] }, zone: "center", dwell_time: 2 }, alert_minor: "Grip stripper handle firmly at base", alert_critical: "Loose grip — tool slip risk" },
+                    { id: 2, name: "Wire Positioning", severity: "critical", requirements: { grip_angle: { min: 60, max: 85, joints: [4, 0, 8] }, zone: "center", dwell_time: 2 }, alert_minor: "Position wire perpendicular to stripper jaw", alert_critical: "STOP — wire angle will nick conductor" },
+                    { id: 3, name: "Controlled Strip Pull", severity: "minor", requirements: { grip_angle: { min: 40, max: 65, joints: [4, 0, 8] }, zone: "left", dwell_time: 3 }, alert_minor: "Pull smoothly toward your body", alert_critical: "Jerky motion detected — conductor damage risk" }
+                ]
+            },
+            c1: {
+                procedure: "Chef Knife Pinch Grip",
+                domain: "culinary",
+                steps: [
+                    { id: 1, name: "Pinch Position", severity: "minor", requirements: { grip_angle: { min: 50, max: 80, joints: [4, 0, 8] }, zone: "center", dwell_time: 2 }, alert_minor: "Pinch blade between thumb and index, not handle", alert_critical: "Full handle grip — control and safety compromised" },
+                    { id: 2, name: "Guide Hand Curl", severity: "critical", requirements: { grip_angle: { min: 70, max: 90, joints: [4, 0, 8] }, zone: "left", dwell_time: 2 }, alert_minor: "Curl fingertips inward — bear claw position", alert_critical: "STOP — extended fingers in blade path" },
+                    { id: 3, name: "Cutting Motion", severity: "minor", requirements: { grip_angle: { min: 45, max: 70, joints: [4, 0, 8] }, zone: "center", dwell_time: 3 }, alert_minor: "Maintain consistent grip through full stroke", alert_critical: "Grip loosening during cut — dangerous" }
+                ]
+            }
+        };
 
-        // Hand Connections (Pairs of landmark indices)
-        const HAND_CONNECTIONS = [
-            [0, 1], [1, 2], [2, 3], [3, 4], // Thumb
-            [0, 5], [5, 6], [6, 7], [7, 8], // Index
-            [5, 9], [9, 10], [10, 11], [11, 12], // Middle
-            [9, 13], [13, 14], [14, 15], [15, 16], // Ring
-            [13, 17], [0, 17], [17, 18], [18, 19], [19, 20] // Pinky
-        ];
+        const DOMAIN_PROCS = {
+            nursing: [{ id: 'n1', diff: 'Advanced', t: '8 min' }, { id: 'n2', diff: 'Intermediate', t: '6 min' }],
+            dentistry: [{ id: 'd1', diff: 'Advanced', t: '7 min' }],
+            culinary: [{ id: 'c1', diff: 'Beginner', t: '4 min' }],
+            electrical: [{ id: 'e1', diff: 'Beginner', t: '5 min' }]
+        };
 
-        function resizeCanvas() {
-            // Match canvas internal resolution to video's intrinsic dimensions
-            if (videoElement.videoWidth && videoElement.videoHeight) {
-                canvasElement.width = videoElement.videoWidth;
-                canvasElement.height = videoElement.videoHeight;
+        // ==========================================
+        // STATE & ROUTING
+        // ==========================================
+        let selectedDomain = '';
+        let authRole = '';
+        let selectedProcedure = null;
+        let currentProcedure = null;
+
+        function showScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => s.style.display = 'none');
+            document.getElementById(id).style.display = 'flex';
+        }
+
+        function selectDomain(domain) {
+            selectedDomain = domain;
+            document.getElementById('auth-domain-label').innerText = domain.toUpperCase();
+            showScreen('screen-auth');
+        }
+
+        function showAuthForm(role) {
+            authRole = role;
+            document.getElementById('auth-form').style.display = 'block';
+            document.getElementById('auth-form-title').innerText = role === 'student' ? 'Student Login' : 'Instructor Login';
+            document.getElementById('auth-error').style.display = 'none';
+        }
+
+        function doLogin() {
+            const u = document.getElementById('auth-user').value;
+            const p = document.getElementById('auth-pass').value;
+            if (authRole === 'student' && u === 'student' && p === 'skill2026') {
+                renderPreSession();
+                showScreen('screen-pre-session');
+            } else if (authRole === 'instructor' && u === 'instructor' && p === 'pilot2026') {
+                window.location.href = 'instructor.html';
+            } else {
+                document.getElementById('auth-error').style.display = 'block';
             }
         }
 
-        // Initialize MediaPipe Hands
-        const hands = new Hands({
-            locateFile: (file) => {
-                return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+        function renderPreSession() {
+            const list = document.getElementById('procedure-list');
+            list.innerHTML = '';
+            DOMAIN_PROCS[selectedDomain].forEach(p => {
+                const data = PROCEDURES[p.id];
+                const div = document.createElement('div');
+                div.className = 'procedure-card';
+                div.innerHTML = `
+                    <h3 class="orbitron text-cyan">${data.procedure}</h3>
+                    <p class="mono muted">Difficulty: ${p.diff} | Time: ${p.t}</p>
+                    <div class="procedure-actions">
+                        <button onclick="viewSteps('${p.id}')">📋 View Procedure Steps</button>
+                        <button class="primary" onclick="startSession('${p.id}')">▶ Start Practice</button>
+                    </div>
+                `;
+                div.onclick = (e) => {
+                    if (e.target.tagName !== 'BUTTON') {
+                        document.querySelectorAll('.procedure-card').forEach(c => c.classList.remove('expanded'));
+                        div.classList.add('expanded');
+                    }
+                };
+                list.appendChild(div);
+            });
+        }
+
+        function viewSteps(id) {
+            init3D();
+            const data = PROCEDURES[id];
+            document.getElementById('modal-title').innerText = data.procedure;
+            const stepsDiv = document.getElementById('modal-steps');
+            stepsDiv.innerHTML = data.steps.map((s, i) => `
+                <div style="border: 1px solid var(--border); padding: 1rem; cursor: pointer;" 
+                     onclick="updateModal3D(${s.requirements.grip_angle.min}, '${s.requirements.zone}')"
+                     class="step-preview-card">
+                    <strong>Step ${i + 1}: ${s.name}</strong> <span class="badge badge-${s.severity}">${s.severity.toUpperCase()}</span><br>
+                    Req: Angle ${s.requirements.grip_angle.min}°-${s.requirements.grip_angle.max}°, Zone: ${s.requirements.zone.toUpperCase()}
+                    <div style="font-size: 0.7rem; color: var(--accent); margin-top: 5px;">▶ Click to preview 3D posture</div>
+                </div>
+            `).join('');
+            document.getElementById('steps-modal').style.display = 'flex';
+
+            // Default to first step 3D view
+            if (data.steps.length > 0) {
+                setTimeout(() => updateModal3D(data.steps[0].requirements.grip_angle.min, data.steps[0].requirements.zone), 100);
             }
-        });
+        }
 
-        hands.setOptions({
-            maxNumHands: 1,
-            modelComplexity: 1,
-            minDetectionConfidence: 0.5,
-            minTrackingConfidence: 0.5
-        });
+        function updateModal3D(angle, zone) {
+            if (modal3DManager) modal3DManager.updateTarget(angle, zone);
+        }
 
-        hands.onResults(onResults);
+        // ==========================================
+        // SESSION STATE & ENGINE
+        // ==========================================
+        let sessionActive = false;
+        let sessionPaused = false;
+        let currentStepIndex = 0;
+        let dwellStartTime = null;
+        let dwellAccumulated = 0;
+        let sessionErrors = [];
+        let sessionFrames = [];
+        let frameCount = 0;
+        let correctFrames = 0;
+        let sessionStartTime = null;
+        let completedSteps = [];
+        let skippedSteps = [];
+        let fatigueEvents = [];
 
+        let personalScaleUnit = null;
+        let scaleFrames = [];
+        let wristHistory = [];
+        let fatigueHistory = [];
+        let fatigueDetected = false;
+        let fatigueRestTimer = null;
+
+        let lastGeminiCall = 0;
+
+        const videoElement = document.getElementById('videoElement');
+        const sessionCanvas = document.getElementById('sessionCanvas');
+        const ctx = sessionCanvas.getContext('2d');
+
+        let handsConfigured = false;
+        let handsTracker, camera;
+
+        async function startSession(id) {
+            selectedProcedure = id;
+            currentProcedure = PROCEDURES[id];
+
+            // Reset state
+            sessionActive = true;
+            sessionPaused = false;
+            currentStepIndex = 0;
+            dwellStartTime = null;
+            dwellAccumulated = 0;
+            sessionErrors = [];
+            sessionFrames = [];
+            frameCount = 0;
+            correctFrames = 0;
+            sessionStartTime = Date.now();
+            completedSteps = [];
+            skippedSteps = [];
+            fatigueEvents = [];
+            personalScaleUnit = null;
+            scaleFrames = [];
+            wristHistory = [];
+            fatigueHistory = [];
+            fatigueDetected = false;
+
+            document.getElementById('api-key-input').value = localStorage.getItem('geminiApiKey') || '';
+
+            // Setup UI
+            document.getElementById('live-proc-name').innerText = currentProcedure.procedure;
+            renderStepChecklist();
+            updateStepUI();
+            showScreen('screen-session');
+
+            if (!handsConfigured) {
+                handsTracker = new Hands({ locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+                handsTracker.setOptions({
+                    maxNumHands: 1, modelComplexity: 1,
+                    minDetectionConfidence: 0.7, minTrackingConfidence: 0.5
+                });
+                handsTracker.onResults(onResults);
+
+                camera = new Camera(videoElement, {
+                    onFrame: async () => { if (sessionActive && !sessionPaused) await handsTracker.send({ image: videoElement }); },
+                    width: 640, height: 480
+                });
+                handsConfigured = true;
+            }
+            camera.start();
+            sessionLoop();
+        }
+
+        function renderStepChecklist() {
+            const container = document.getElementById('session-checklist');
+            container.innerHTML = currentProcedure.steps.map((s, i) => `
+                <div class="step-item" id="ui-step-${i}">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <strong>${i + 1}. ${s.name}</strong>
+                        <span class="badge badge-${s.severity}">${s.severity.toUpperCase()}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateStepUI() {
+            if (currentStepIndex >= currentProcedure.steps.length) return;
+            const step = currentProcedure.steps[currentStepIndex];
+            document.getElementById('live-step-name').innerText = `Step ${currentStepIndex + 1}: ${step.name}`;
+
+            document.querySelectorAll('.step-item').forEach((el, i) => {
+                el.classList.remove('active');
+                if (i === currentStepIndex) el.classList.add('active');
+                if (completedSteps.includes(i)) el.classList.add('complete');
+                if (skippedSteps.includes(i)) el.classList.add('skipped');
+            });
+
+            document.getElementById('ui-angle-target').innerText = `Target: ${step.requirements.grip_angle.min}°–${step.requirements.grip_angle.max}°`;
+            document.getElementById('ui-zone-target').innerText = `Target: ${step.requirements.zone.toUpperCase()}`;
+            document.getElementById('step-progress-fill').style.width = `${(currentStepIndex / currentProcedure.steps.length) * 100}%`;
+
+            // Update 3D Live Guide
+            init3D();
+            if (live3DManager) {
+                live3DManager.updateTarget(step.requirements.grip_angle.min, step.requirements.zone);
+            }
+        }
+
+        function sessionLoop() {
+            if (!sessionActive) return;
+            if (!sessionPaused) {
+                const elapsed = Math.floor((Date.now() - sessionStartTime) / 1000);
+                const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
+                const s = String(elapsed % 60).padStart(2, '0');
+                document.getElementById('live-timer').innerText = `${m}:${s}`;
+            }
+            requestAnimationFrame(sessionLoop);
+        }
+
+        function pauseSession() {
+            sessionPaused = !sessionPaused;
+            document.getElementById('btn-pause').innerText = sessionPaused ? "▶ Resume" : "⏸ Pause";
+        }
+
+        function forceCompleteSession() {
+            completeSession();
+        }
+
+        function resetSession() {
+            camera.stop();
+            startSession(selectedProcedure);
+        }
+
+        // ==========================================
+        // MEDIAPIPE & MATH
+        // ==========================================
         function onResults(results) {
-            // Hide loading indicator when we start receiving results
-            if (!statusIndicator.classList.contains('hidden') && !statusIndicator.innerHTML.includes('Error')) {
-                statusIndicator.classList.add('hidden');
-            }
+            if (!sessionActive || sessionPaused || fatigueDetected) return;
 
-            canvasCtx.save();
-            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            ctx.save();
+            ctx.clearRect(0, 0, sessionCanvas.width, sessionCanvas.height);
+            ctx.drawImage(results.image, 0, 0, sessionCanvas.width, sessionCanvas.height);
 
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const landmarks = results.multiHandLandmarks[0];
 
-                // Draw connections (skeleton)
-                canvasCtx.lineWidth = 2;
-                canvasCtx.strokeStyle = 'white';
-
-                for (const connection of HAND_CONNECTIONS) {
-                    const from = landmarks[connection[0]];
-                    const to = landmarks[connection[1]];
-
-                    const fromX = from.x * canvasElement.width;
-                    const fromY = from.y * canvasElement.height;
-                    const toX = to.x * canvasElement.width;
-                    const toY = to.y * canvasElement.height;
-
-                    canvasCtx.beginPath();
-                    canvasCtx.moveTo(fromX, fromY);
-                    canvasCtx.lineTo(toX, toY);
-                    canvasCtx.stroke();
+                // Logging matrix spec
+                if (frameCount % 60 === 0) {
+                    console.log("Landmarks 21x3 matrix:", landmarks.map(l => ({ x: l.x.toFixed(3), y: l.y.toFixed(3), z: l.z.toFixed(3) })));
                 }
 
-                // Draw landmarks and indices
-                for (let i = 0; i < landmarks.length; i++) {
-                    const landmark = landmarks[i];
-                    const x = landmark.x * canvasElement.width;
-                    const y = landmark.y * canvasElement.height;
+                drawConnectors(ctx, landmarks, HAND_CONNECTIONS, { color: '#00FF00', lineWidth: 2 });
+                drawLandmarks(ctx, landmarks, { color: '#FF0000', lineWidth: 1, radius: 2 });
 
-                    // Draw node point
-                    canvasCtx.beginPath();
-                    canvasCtx.arc(x, y, 5, 0, 2 * Math.PI);
-                    canvasCtx.fillStyle = '#00ff00'; // Green landmarks
-                    canvasCtx.fill();
+                processFrame(landmarks);
+            }
+            ctx.restore();
+        }
 
-                    // Console log for debugging the landmark positions (from 0 to 1 scaling)
-                    // console.log(`Landmark ${i}: [${landmark.x.toFixed(3)}, ${landmark.y.toFixed(3)}, ${landmark.z.toFixed(3)}]`);
+        function updateScaleUnit(landmarks) {
+            if (personalScaleUnit !== null) return;
+            const wrist = landmarks[0], middleMCP = landmarks[9];
+            const dist = Math.sqrt(Math.pow(wrist.x - middleMCP.x, 2) + Math.pow(wrist.y - middleMCP.y, 2) + Math.pow(wrist.z - middleMCP.z, 2));
+            scaleFrames.push(dist);
+            if (scaleFrames.length >= 30) {
+                personalScaleUnit = scaleFrames.reduce((a, b) => a + b, 0) / scaleFrames.length;
+                console.log('Personal scale unit calibrated:', personalScaleUnit);
+            }
+        }
 
-                    // Draw text index
-                    canvasCtx.save();
-                    // Translate to point, mirror X (to counter CSS scaleX(-1) mirror), then draw text
-                    // This ensures text reads correctly and not backwards.
-                    canvasCtx.translate(x, y);
-                    canvasCtx.scale(-1, 1);
-                    canvasCtx.font = "14px 'Segoe UI', Arial, sans-serif";
-                    canvasCtx.fillStyle = "#ffffff";
+        function calculateAngle(A, B, C) {
+            const BA = { x: A.x - B.x, y: A.y - B.y, z: A.z - B.z };
+            const BC = { x: C.x - B.x, y: C.y - B.y, z: C.z - B.z };
+            const dot = BA.x * BC.x + BA.y * BC.y + BA.z * BC.z;
+            const magBA = Math.sqrt(BA.x ** 2 + BA.y ** 2 + BA.z ** 2);
+            const magBC = Math.sqrt(BC.x ** 2 + BC.y ** 2 + BC.z ** 2);
+            const cosAngle = Math.max(-1, Math.min(1, dot / (magBA * magBC)));
+            return Math.acos(cosAngle) * (180 / Math.PI);
+        }
 
-                    // Use measureText to add a slight background for better legibility
-                    const text = i.toString();
-                    const textWidth = canvasCtx.measureText(text).width;
-                    canvasCtx.fillStyle = "rgba(0, 0, 0, 0.5)";
-                    canvasCtx.fillRect(6, -12, textWidth + 4, 16);
+        function getHandZone(landmarks) {
+            const wristX = landmarks[0].x;
+            if (wristX < 0.33) return 'RIGHT'; // mirrored conceptually for mediapipe space
+            if (wristX > 0.66) return 'LEFT';
+            return 'CENTER';
+        }
 
-                    canvasCtx.fillStyle = "#ffffff";
-                    canvasCtx.fillText(text, 8, 1);
-                    canvasCtx.restore();
+        // ==========================================
+        // FATIGUE DETECTION
+        // ==========================================
+        function updateFatigue(landmarks) {
+            const wrist = landmarks[0];
+            wristHistory.push({ x: wrist.x, y: wrist.y });
+            if (wristHistory.length > 30) wristHistory.shift();
+
+            if (wristHistory.length < 30) return 0;
+
+            const meanX = wristHistory.reduce((s, p) => s + p.x, 0) / 30;
+            const meanY = wristHistory.reduce((s, p) => s + p.y, 0) / 30;
+            const varX = wristHistory.reduce((s, p) => s + Math.pow(p.x - meanX, 2), 0) / 30;
+            const varY = wristHistory.reduce((s, p) => s + Math.pow(p.y - meanY, 2), 0) / 30;
+            const fatigueScore = (Math.sqrt(varX) + Math.sqrt(varY)) / 2;
+
+            fatigueHistory.push(fatigueScore);
+            if (fatigueHistory.length > 60) fatigueHistory.shift();
+
+            if (fatigueScore > 0.015 && !fatigueDetected) {
+                fatigueDetected = true;
+                triggerFatigueAlert();
+            }
+
+            drawFatigueChart(fatigueHistory);
+            if (frameCount % 60 === 0) console.log("Fatigue Score:", fatigueScore.toFixed(4));
+            return fatigueScore;
+        }
+
+        function drawFatigueChart(history) {
+            const fCanvas = document.getElementById('fatigueCanvas');
+            const fCtx = fCanvas.getContext('2d');
+            fCtx.clearRect(0, 0, fCanvas.width, fCanvas.height);
+
+            fCtx.strokeStyle = 'rgba(255, 51, 102, 0.5)';
+            fCtx.beginPath();
+            fCtx.moveTo(0, fCanvas.height - (0.015 / 0.03) * fCanvas.height);
+            fCtx.lineTo(fCanvas.width, fCanvas.height - (0.015 / 0.03) * fCanvas.height);
+            fCtx.stroke();
+
+            fCtx.strokeStyle = '#00e5ff';
+            fCtx.beginPath();
+            const stepX = fCanvas.width / 60;
+            history.forEach((val, i) => {
+                const y = fCanvas.height - Math.min((val / 0.03) * fCanvas.height, fCanvas.height);
+                if (i === 0) fCtx.moveTo(i * stepX, y);
+                else fCtx.lineTo(i * stepX, y);
+            });
+            fCtx.stroke();
+        }
+
+        function triggerFatigueAlert() {
+            fatigueEvents.push(Date.now() - sessionStartTime);
+            document.getElementById('fatigue-banner').style.display = 'block';
+            let timeLeft = 30;
+            document.getElementById('fatigue-timer').innerText = timeLeft;
+
+            fatigueRestTimer = setInterval(() => {
+                timeLeft--;
+                document.getElementById('fatigue-timer').innerText = timeLeft;
+                if (timeLeft <= 0) {
+                    clearInterval(fatigueRestTimer);
+                    document.getElementById('fatigue-banner').style.display = 'none';
+                    fatigueDetected = false;
+                }
+            }, 1000);
+        }
+
+        // ==========================================
+        // FRAME PROCESSING
+        // ==========================================
+        function processFrame(landmarks) {
+            frameCount++;
+            updateScaleUnit(landmarks);
+
+            if (currentStepIndex >= currentProcedure.steps.length) return;
+            const step = currentProcedure.steps[currentStepIndex];
+
+            const joints = step.requirements.grip_angle.joints;
+            const angle = calculateAngle(landmarks[joints[0]], landmarks[joints[1]], landmarks[joints[2]]);
+            const zone = getHandZone(landmarks);
+            const fatigueScore = updateFatigue(landmarks);
+
+            const angleOk = angle >= step.requirements.grip_angle.min && angle <= step.requirements.grip_angle.max;
+            const zoneOk = zone === step.requirements.zone.toUpperCase();
+            const allOk = angleOk && zoneOk;
+
+            updateParameterPanel(angle, step, zone, allOk);
+            drawIdealGhost(landmarks, step, allOk);
+
+            if (allOk) {
+                if (!dwellStartTime) dwellStartTime = Date.now();
+                dwellAccumulated = (Date.now() - dwellStartTime) / 1000;
+                correctFrames++;
+
+                if (dwellAccumulated >= step.requirements.dwell_time) {
+                    console.log(`Step ${currentStepIndex} Complete`);
+                    completeStep(currentStepIndex);
                 }
             } else {
-                // Console log or UI feedback for 'no hand detected'
-                // console.log("No hand detected.");
+                dwellStartTime = null;
+                dwellAccumulated = 0;
+
+                const severity = step.severity;
+                const alertMsg = angleOk ? step.alert_minor : (severity === 'critical' ? step.alert_critical : step.alert_minor);
+                showAlert(alertMsg, severity);
+
+                // Throttle error logging
+                if (frameCount % 15 === 0) {
+                    sessionErrors.push({ timestamp: Date.now() - sessionStartTime, stepId: step.id, angle: angle.toFixed(1), zone: zone, severity: severity, message: alertMsg });
+                }
             }
-            canvasCtx.restore();
+
+            // Record frame for replay
+            if (frameCount % 3 === 0) { // 10fps for replay
+                sessionFrames.push({
+                    t: Date.now() - sessionStartTime,
+                    lm: landmarks.map(l => ({ x: l.x, y: l.y, z: l.z })),
+                    angle: angle, zone: zone, correct: allOk, stepId: step.id
+                });
+            }
+
+            const accuracy = Math.round((correctFrames / frameCount) * 100);
+            document.getElementById('live-accuracy').innerText = `${accuracy}%`;
+            document.getElementById('live-accuracy').style.color = accuracy > 70 ? 'var(--success)' : (accuracy > 50 ? 'var(--warn)' : 'var(--danger)');
+
+            // Gemini Coach logic
+            if (Date.now() - lastGeminiCall > 5000) {
+                lastGeminiCall = Date.now();
+                callGeminiCoach(angle, step, zone, accuracy);
+            }
         }
 
-        async function setupCamera() {
+        function updateParameterPanel(angle, step, zone, allOk) {
+            document.getElementById('ui-angle').innerText = `${Math.round(angle)}°`;
+            document.getElementById('ui-angle').style.color = (angle >= step.requirements.grip_angle.min && angle <= step.requirements.grip_angle.max) ? 'var(--success)' : 'var(--danger)';
+
+            ['left', 'center', 'right'].forEach(z => document.getElementById(`zone-${z}`).classList.remove('active'));
+            document.getElementById(`zone-${zone.toLowerCase()}`).classList.add('active');
+
+            document.getElementById('ui-dwell').innerText = `${dwellAccumulated.toFixed(1)}s / ${step.requirements.dwell_time}s`;
+            document.getElementById('ui-dwell').style.color = allOk ? 'var(--accent)' : 'var(--danger)';
+        }
+
+        function showAlert(msg, severity) {
+            const box = document.getElementById('ui-alert-box');
+            const txt = document.getElementById('ui-alert-msg');
+            txt.innerText = msg;
+            box.className = 'param-card alert-' + severity;
+            setTimeout(() => { box.className = 'param-card'; }, 1000);
+        }
+
+        function drawIdealGhost(currentLandmarks, step, isCorrect) {
+            const W = sessionCanvas.width;
+            const H = sessionCanvas.height;
+
+            const idealWrist = { x: 0.5, y: 0.6 };
+            if (step.requirements.zone === 'right') idealWrist.x = 0.7;
+            if (step.requirements.zone === 'left') idealWrist.x = 0.3;
+
+            ctx.globalAlpha = 0.4;
+            ctx.fillStyle = isCorrect ? 'rgba(0,255,157,0.5)' : 'rgba(0,150,255,0.5)';
+
+            const ghostPoints = [
+                { x: idealWrist.x, y: idealWrist.y },
+                { x: idealWrist.x - 0.05, y: idealWrist.y - 0.15 },
+                { x: idealWrist.x + 0.02, y: idealWrist.y - 0.2 },
+                { x: idealWrist.x + 0.06, y: idealWrist.y - 0.2 },
+                { x: idealWrist.x + 0.10, y: idealWrist.y - 0.18 },
+            ];
+
+            ghostPoints.forEach(p => {
+                ctx.beginPath();
+                ctx.arc(p.x * W, p.y * H, 8, 0, 2 * Math.PI);
+                ctx.fill();
+            });
+
+            ctx.strokeStyle = isCorrect ? 'rgba(0, 255, 157, 0.3)' : 'rgba(0, 150, 255, 0.3)';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ghostPoints.forEach((p, i) => {
+                if (i === 0) ctx.moveTo(p.x * W, p.y * H);
+                else ctx.lineTo(p.x * W, p.y * H);
+            });
+            ctx.stroke();
+            ctx.globalAlpha = 1.0;
+        }
+
+        function completeStep(index) {
+            completedSteps.push(index);
+            if (index > 0 && !completedSteps.includes(index - 1)) skippedSteps.push(index - 1);
+
+            currentStepIndex++;
+            dwellStartTime = null;
+            dwellAccumulated = 0;
+
+            updateStepUI();
+
+            if (currentStepIndex >= currentProcedure.steps.length) {
+                completeSession();
+            }
+        }
+
+        function completeSession() {
+            sessionActive = false;
+            camera.stop();
+
+            const sessionData = {
+                procedure: currentProcedure.procedure,
+                domain: selectedDomain,
+                date: new Date().toISOString(),
+                duration: Date.now() - sessionStartTime,
+                accuracy: Math.round((correctFrames / frameCount) * 100),
+                errors: sessionErrors,
+                frames: sessionFrames,
+                completedSteps: completedSteps,
+                skippedSteps: skippedSteps,
+                fatigueEvents: fatigueEvents
+            };
+
+            localStorage.setItem('lastSession', JSON.stringify(sessionData));
+            showScreen('screen-report');
+            renderReport(sessionData);
+        }
+
+        // ==========================================
+        // REPORT & PDF
+        // ==========================================
+        function renderReport(data) {
+            document.getElementById('report-proc-name').innerText = data.procedure;
+            document.getElementById('report-accuracy').innerText = `${data.accuracy}%`;
+
+            const ratingEl = document.getElementById('report-rating');
+            if (data.accuracy > 85) { ratingEl.innerText = "EXCELLENT — Procedure Mastered"; ratingEl.style.color = "var(--success)"; }
+            else if (data.accuracy >= 60) { ratingEl.innerText = "GOOD — Needs Minor Refinement"; ratingEl.style.color = "var(--warn)"; }
+            else { ratingEl.innerText = "NEEDS PRACTICE — Review Steps and Retry"; ratingEl.style.color = "var(--danger)"; }
+
+            document.getElementById('report-duration').innerText = `${Math.floor(data.duration / 1000)}s`;
+            document.getElementById('report-error-count').innerText = data.errors.length;
+
+            const tbody = document.getElementById('report-table-body');
+            tbody.innerHTML = '<tr><th>Time</th><th>Step</th><th>Severity</th><th>Message</th></tr>';
+
+            data.errors.slice(0, 20).forEach(e => { // limit to 20 for UI
+                const tr = document.createElement('tr');
+                tr.style.background = e.severity === 'critical' ? 'rgba(255,51,102,0.2)' : 'rgba(255,194,51,0.2)';
+                tr.innerHTML = `
+                    <td>${Math.floor(e.timestamp / 1000)}s</td>
+                    <td>${e.stepId}</td>
+                    <td>${e.severity.toUpperCase()}</td>
+                    <td>${e.message}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function downloadPDF() {
+            const data = JSON.parse(localStorage.getItem('lastSession'));
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(20);
+            doc.text("SkillPilot_AI - Skill Assessment Report", 10, 20);
+
+            doc.setFontSize(12);
+            doc.setFont("helvetica", "normal");
+            doc.text(`Student: Student`, 10, 30);
+            doc.text(`Date: ${new Date(data.date).toLocaleString()}`, 10, 38);
+            doc.text(`Procedure: ${data.procedure}`, 10, 46);
+
+            doc.text(`Accuracy: ${data.accuracy}%`, 10, 60);
+            doc.text(`Duration: ${Math.floor(data.duration / 1000)}s`, 10, 68);
+            doc.text(`Total Errors Recorded: ${data.errors.length}`, 10, 76);
+            doc.text(`Fatigue Events: ${data.fatigueEvents.length}`, 10, 84);
+
+            doc.setFont("helvetica", "bold");
+            doc.text("Top Errors:", 10, 100);
+            doc.setFont("helvetica", "normal");
+            let y = 108;
+            data.errors.slice(0, 10).forEach(e => {
+                doc.text(`- [${Math.floor(e.timestamp / 1000)}s] ${e.severity.toUpperCase()}: ${e.message}`, 10, y);
+                y += 8;
+            });
+
+            doc.save(`SkillPilot_Report_${new Date().getTime()}.pdf`);
+        }
+
+        // ==========================================
+        // REPLAY
+        // ==========================================
+        let replayData = null;
+        let replayFrameIdx = 0;
+        let replayPlaying = false;
+        let replayLoopId = null;
+
+        function setupReplay() {
+            replayData = JSON.parse(localStorage.getItem('lastSession'));
+            if (!replayData || !replayData.frames || replayData.frames.length === 0) return;
+
+            showScreen('screen-replay');
+            document.getElementById('replayTimeline').max = replayData.frames.length - 1;
+            replayFrameIdx = 0;
+            drawReplayFrame();
+
+            if (localStorage.getItem('geminiApiKey')) {
+                fetchReplayAnalysis(replayData);
+            } else {
+                document.getElementById('ai-replay-analysis').innerText = "Add Gemini API key in Session settings to unlock AI analysis.";
+            }
+        }
+
+        function toggleReplay() {
+            replayPlaying = !replayPlaying;
+            document.getElementById('btn-replay-play').innerText = replayPlaying ? "⏸ Pause" : "⏯ Play";
+            if (replayPlaying) replayLoop();
+            else cancelAnimationFrame(replayLoopId);
+        }
+
+        function scrubReplay(seconds) {
+            const framesToJump = seconds * 10; // assumed 10fps
+            replayFrameIdx = Math.max(0, Math.min(replayData.frames.length - 1, replayFrameIdx + framesToJump));
+            document.getElementById('replayTimeline').value = replayFrameIdx;
+            drawReplayFrame();
+        }
+
+        document.getElementById('replayTimeline').addEventListener('input', (e) => {
+            replayFrameIdx = parseInt(e.target.value);
+            drawReplayFrame();
+        });
+
+        function replayLoop() {
+            if (!replayPlaying) return;
+            replayFrameIdx++;
+            if (replayFrameIdx >= replayData.frames.length) {
+                replayPlaying = false;
+                document.getElementById('btn-replay-play').innerText = "⏯ Play";
+                return;
+            }
+            document.getElementById('replayTimeline').value = replayFrameIdx;
+            drawReplayFrame();
+            replayLoopId = requestAnimationFrame(replayLoop);
+        }
+
+        function drawReplayFrame() {
+            if (!replayData || !replayData.frames[replayFrameIdx]) return;
+            const frame = replayData.frames[replayFrameIdx];
+
+            const cS = document.getElementById('replayStudent');
+            const cI = document.getElementById('replayIdeal');
+            const ctxS = cS.getContext('2d');
+            const ctxI = cI.getContext('2d');
+
+            ctxS.clearRect(0, 0, cS.width, cS.height);
+            ctxI.clearRect(0, 0, cI.width, cI.height);
+
+            // Draw Student
+            const lm = frame.lm;
+            const colorS = frame.correct ? '#00ff9d' : '#ff3366';
+            drawConnectors(ctxS, lm, HAND_CONNECTIONS, { color: colorS, lineWidth: 2 });
+            drawLandmarks(ctxS, lm, { color: colorS, lineWidth: 1, radius: 2 });
+
+            // Draw Ideal abstract representation
+            ctxI.fillStyle = 'rgba(0, 255, 157, 0.5)';
+            ctxI.beginPath();
+            ctxI.arc(cI.width / 2, cI.height * 0.6, 20, 0, 2 * Math.PI); // wrist
+            ctxI.arc(cI.width / 2 + 30, cI.height * 0.4, 15, 0, 2 * Math.PI); // fingers
+            ctxI.fill();
+            ctxI.strokeStyle = '#00ff9d';
+            ctxI.lineWidth = 4;
+            ctxI.beginPath();
+            ctxI.moveTo(cI.width / 2, cI.height * 0.6);
+            ctxI.lineTo(cI.width / 2 + 30, cI.height * 0.4);
+            ctxI.stroke();
+        }
+
+        // ==========================================
+        // GEMINI AI INTEGRATION
+        // ==========================================
+        function saveApiKey() {
+            localStorage.setItem('geminiApiKey', document.getElementById('api-key-input').value);
+        }
+
+        async function callGeminiCoach(angle, step, zone, accuracy) {
+            const apiKey = localStorage.getItem('geminiApiKey');
+            if (!apiKey) return;
+
+            const prompt = `You are a real-time procedural skill coach. 
+            Student is practicing: ${currentProcedure.procedure}
+            Current step: ${step.name} (${step.severity} severity)
+            Grip angle: ${Math.round(angle)}° (target: ${step.requirements.grip_angle.min}°–${step.requirements.grip_angle.max}°)
+            Hand zone: ${zone} (required: ${step.requirements.zone})
+            Session accuracy: ${accuracy}%
+            Give ONE specific corrective instruction in under 12 words. 
+            Be direct and clinical. No preamble.`;
+
             try {
-                statusIndicator.innerHTML = '<div class="loading-spinner"></div><br>Requesting camera access...';
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 },
-                        facingMode: "user"
-                    },
-                    audio: false
-                });
-                videoElement.srcObject = stream;
-
-                return new Promise((resolve) => {
-                    videoElement.onloadedmetadata = () => {
-                        resizeCanvas();
-                        resolve();
-                    };
-                });
-            } catch (err) {
-                console.error("Camera access denied or unavailable:", err);
-                statusIndicator.innerHTML = `<span class="error-msg">Camera Access Denied<br>Please allow camera permissions.</span>`;
-                statusIndicator.classList.remove('hidden');
-                throw err;
-            }
+                const response = await fetch(
+                    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                    }
+                );
+                const data = await response.json();
+                const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                document.getElementById('ai-coach-text').innerText = text.replace(/\n/g, ' ');
+            } catch (e) { console.error("Gemini API Error", e); }
         }
 
-        async function init() {
+        async function fetchReplayAnalysis(data) {
+            const apiKey = localStorage.getItem('geminiApiKey');
+            if (!apiKey) return;
+
+            document.getElementById('ai-replay-analysis').innerText = "Analyzing session data...";
+
+            const topErrors = data.errors.slice(0, 5).map(e => `${e.severity}: ${e.message} at ${e.angle}°`);
+
+            const prompt = `Analyze this skill assessment session data and provide specific coaching feedback. 
+            Procedure: ${data.procedure}. 
+            Accuracy: ${data.accuracy}%. 
+            Errors: ${JSON.stringify(topErrors)}.
+            Fatigue events: ${data.fatigueEvents.length}.
+            Completed steps: ${data.completedSteps.length}/${currentProcedure ? currentProcedure.steps.length : 'all'}.
+
+            Provide:
+            1. Overall performance summary (2 sentences)
+            2. Top 3 specific errors with exact correction instructions
+            3. One fatigue management recommendation if applicable
+            4. Next practice focus area
+
+            Be specific, clinical, and direct. Use exact angle values from the data.`;
+
             try {
-                await setupCamera();
-                videoElement.play();
+                const response = await fetch(
+                    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                    }
+                );
+                const result = await response.json();
+                const text = result.candidates?.[0]?.content?.parts?.[0]?.text || 'Failed to generate analysis.';
+                document.getElementById('ai-replay-analysis').innerText = text;
+            } catch (e) {
+                document.getElementById('ai-replay-analysis').innerText = "Error contacting Gemini API.";
+            }
+        }
+        // ==========================================
+        // 3D MODEL MANAGER (Three.js)
+        // ==========================================
+        class Hand3DManager {
+            constructor(containerId) {
+                this.container = document.getElementById(containerId);
+                if (!this.container) return;
+                
+                this.scene = new THREE.Scene();
+                this.camera = new THREE.PerspectiveCamera(45, this.container.clientWidth / this.container.clientHeight, 0.1, 1000);
+                this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
+                this.renderer.setClearColor(0x000000, 0);
+                this.container.appendChild(this.renderer.domElement);
 
-                statusIndicator.innerHTML = '<div class="loading-spinner"></div><br>Loading tracking model...';
+                this.camera.position.set(0, 0, 0.4);
+                
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+                this.scene.add(ambientLight);
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+                directionalLight.position.set(1, 1, 1).normalize();
+                this.scene.add(directionalLight);
 
-                const camera = new Camera(videoElement, {
-                    onFrame: async () => {
-                        await hands.send({ image: videoElement });
-                    },
-                    width: videoElement.videoWidth || 1280,
-                    height: videoElement.videoHeight || 720
+                this.loader = new THREE.GLTFLoader();
+                this.model = null;
+                this.loadModel();
+                this.animate();
+
+                window.addEventListener('resize', () => this.handleResize());
+            }
+
+            loadModel() {
+                // Using the specific model filename from the directory
+                this.loader.load('models/16834_hand_v1_NEW.glb', (gltf) => {
+                    this.model = gltf.scene;
+                    this.model.scale.set(1.2, 1.2, 1.2);
+                    this.model.position.set(0, -0.05, 0);
+                    this.scene.add(this.model);
+                    console.log("3D Hand Model Loaded Successfully");
+                }, undefined, (error) => {
+                    console.error('Error loading 3D model:', error);
                 });
-                // Start requestAnimationFrame loop via MediaPipe camera utility
-                camera.start();
+            }
 
-                window.addEventListener('resize', resizeCanvas);
+            updateTarget(angle, zone) {
+                if (!this.model) return;
+                
+                // Base orientation: palm facing camera, fingers up
+                this.model.rotation.set(0, Math.PI, 0);
+                
+                // Rotation based on angle requirement (mapping 0-180 to Z-axis tilt)
+                // Normalize angle so 90 is neutral
+                const targetRad = (angle - 90) * (Math.PI / 180);
+                this.model.rotation.z = targetRad;
 
-            } catch (error) {
-                console.error("Startup failed:", error);
+                // Position based on zone requirement
+                const z = zone ? zone.toUpperCase() : 'CENTER';
+                if (z === 'LEFT') this.model.position.x = -0.12;
+                else if (z === 'RIGHT') this.model.position.x = 0.12;
+                else this.model.position.x = 0;
+            }
+
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                if (this.model) {
+                    // Slight idle animation (optional)
+                    // this.model.rotation.y += 0.005;
+                }
+                this.renderer.render(this.scene, this.camera);
+            }
+            
+            handleResize() {
+                 if (!this.container) return;
+                 this.camera.aspect = this.container.clientWidth / this.container.clientHeight;
+                 this.camera.updateProjectionMatrix();
+                 this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
             }
         }
 
-        window.onload = init;
+        let modal3DManager = null;
+        let live3DManager = null;
+
+        function init3D() {
+            if (!modal3DManager) modal3DManager = new Hand3DManager('modal-3d-view');
+            if (!live3DManager) live3DManager = new Hand3DManager('live-3d-view');
+        }
+
     </script>
 </body>
 
