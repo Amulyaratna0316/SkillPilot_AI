@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Hand Tracking</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background-color: #121212;
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+            font-size: 24px;
+            text-align: center;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+            z-index: 30;
+        }
+
+        .container {
+            position: relative;
+            width: 1280px;
+            height: 720px;
+            max-width: 95vw;
+            max-height: 85vh;
+            background-color: #000;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            transform: scaleX(-1);
+            /* Mirror view */
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            transform: scaleX(-1);
+            /* Mirror view to match video */
+            z-index: 10;
+        }
+
+        .status {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.5rem;
+            color: #ddd;
+            z-index: 20;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px 30px;
+            border-radius: 12px;
+            text-align: center;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .status.hidden {
+            opacity: 0;
+        }
+
+        .error-msg {
+            color: #ff4d4d;
+            font-weight: bold;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 35px;
+            height: 35px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            margin-bottom: 15px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+
+    <!-- MediaPipe Hands -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+
+<body>
+    <h1>Real-Time Hand Tracking</h1>
+    <div class="container">
+        <div id="statusIndicator" class="status">
+            <div class="loading-spinner"></div><br>
+            Initializing MediaPipe...
+        </div>
+        <video id="webcam" autoplay playsinline></video>
+        <canvas id="output_canvas"></canvas>
+    </div>
+
+    <script>
+        const videoElement = document.getElementById('webcam');
+        const canvasElement = document.getElementById('output_canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const statusIndicator = document.getElementById('statusIndicator');
+
+        // Hand Connections (Pairs of landmark indices)
+        const HAND_CONNECTIONS = [
+            [0, 1], [1, 2], [2, 3], [3, 4], // Thumb
+            [0, 5], [5, 6], [6, 7], [7, 8], // Index
+            [5, 9], [9, 10], [10, 11], [11, 12], // Middle
+            [9, 13], [13, 14], [14, 15], [15, 16], // Ring
+            [13, 17], [0, 17], [17, 18], [18, 19], [19, 20] // Pinky
+        ];
+
+        function resizeCanvas() {
+            // Match canvas internal resolution to video's intrinsic dimensions
+            if (videoElement.videoWidth && videoElement.videoHeight) {
+                canvasElement.width = videoElement.videoWidth;
+                canvasElement.height = videoElement.videoHeight;
+            }
+        }
+
+        // Initialize MediaPipe Hands
+        const hands = new Hands({
+            locateFile: (file) => {
+                return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+            }
+        });
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        hands.onResults(onResults);
+
+        function onResults(results) {
+            // Hide loading indicator when we start receiving results
+            if (!statusIndicator.classList.contains('hidden') && !statusIndicator.innerHTML.includes('Error')) {
+                statusIndicator.classList.add('hidden');
+            }
+
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const landmarks = results.multiHandLandmarks[0];
+
+                // Draw connections (skeleton)
+                canvasCtx.lineWidth = 2;
+                canvasCtx.strokeStyle = 'white';
+
+                for (const connection of HAND_CONNECTIONS) {
+                    const from = landmarks[connection[0]];
+                    const to = landmarks[connection[1]];
+
+                    const fromX = from.x * canvasElement.width;
+                    const fromY = from.y * canvasElement.height;
+                    const toX = to.x * canvasElement.width;
+                    const toY = to.y * canvasElement.height;
+
+                    canvasCtx.beginPath();
+                    canvasCtx.moveTo(fromX, fromY);
+                    canvasCtx.lineTo(toX, toY);
+                    canvasCtx.stroke();
+                }
+
+                // Draw landmarks and indices
+                for (let i = 0; i < landmarks.length; i++) {
+                    const landmark = landmarks[i];
+                    const x = landmark.x * canvasElement.width;
+                    const y = landmark.y * canvasElement.height;
+
+                    // Draw node point
+                    canvasCtx.beginPath();
+                    canvasCtx.arc(x, y, 5, 0, 2 * Math.PI);
+                    canvasCtx.fillStyle = '#00ff00'; // Green landmarks
+                    canvasCtx.fill();
+
+                    // Console log for debugging the landmark positions (from 0 to 1 scaling)
+                    // console.log(`Landmark ${i}: [${landmark.x.toFixed(3)}, ${landmark.y.toFixed(3)}, ${landmark.z.toFixed(3)}]`);
+
+                    // Draw text index
+                    canvasCtx.save();
+                    // Translate to point, mirror X (to counter CSS scaleX(-1) mirror), then draw text
+                    // This ensures text reads correctly and not backwards.
+                    canvasCtx.translate(x, y);
+                    canvasCtx.scale(-1, 1);
+                    canvasCtx.font = "14px 'Segoe UI', Arial, sans-serif";
+                    canvasCtx.fillStyle = "#ffffff";
+
+                    // Use measureText to add a slight background for better legibility
+                    const text = i.toString();
+                    const textWidth = canvasCtx.measureText(text).width;
+                    canvasCtx.fillStyle = "rgba(0, 0, 0, 0.5)";
+                    canvasCtx.fillRect(6, -12, textWidth + 4, 16);
+
+                    canvasCtx.fillStyle = "#ffffff";
+                    canvasCtx.fillText(text, 8, 1);
+                    canvasCtx.restore();
+                }
+            } else {
+                // Console log or UI feedback for 'no hand detected'
+                // console.log("No hand detected.");
+            }
+            canvasCtx.restore();
+        }
+
+        async function setupCamera() {
+            try {
+                statusIndicator.innerHTML = '<div class="loading-spinner"></div><br>Requesting camera access...';
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        facingMode: "user"
+                    },
+                    audio: false
+                });
+                videoElement.srcObject = stream;
+
+                return new Promise((resolve) => {
+                    videoElement.onloadedmetadata = () => {
+                        resizeCanvas();
+                        resolve();
+                    };
+                });
+            } catch (err) {
+                console.error("Camera access denied or unavailable:", err);
+                statusIndicator.innerHTML = `<span class="error-msg">Camera Access Denied<br>Please allow camera permissions.</span>`;
+                statusIndicator.classList.remove('hidden');
+                throw err;
+            }
+        }
+
+        async function init() {
+            try {
+                await setupCamera();
+                videoElement.play();
+
+                statusIndicator.innerHTML = '<div class="loading-spinner"></div><br>Loading tracking model...';
+
+                const camera = new Camera(videoElement, {
+                    onFrame: async () => {
+                        await hands.send({ image: videoElement });
+                    },
+                    width: videoElement.videoWidth || 1280,
+                    height: videoElement.videoHeight || 720
+                });
+                // Start requestAnimationFrame loop via MediaPipe camera utility
+                camera.start();
+
+                window.addEventListener('resize', resizeCanvas);
+
+            } catch (error) {
+                console.error("Startup failed:", error);
+            }
+        }
+
+        window.onload = init;
+    </script>
+</body>
+
+</html>
