@@ -180,12 +180,10 @@
         /* UI requirements: Video layer 1, MP layer 2, Three layer 3 */
         #layer1-video {
             z-index: 1;
-            transform: scaleX(-1);
         }
 
         #mp-canvas {
             z-index: 2;
-            transform: scaleX(-1);
         }
 
         #three-canvas {
@@ -387,21 +385,13 @@
         // Composite layers into outputCanvas
         function compositeFrame() {
             outCtx.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
-            // 1. Draw video (mirrored)
-            outCtx.save();
-            outCtx.translate(outputCanvas.width, 0);
-            outCtx.scale(-1, 1);
+            // 1. Draw video
             if (videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
                 outCtx.drawImage(videoElement, 0, 0, outputCanvas.width, outputCanvas.height);
             }
-            outCtx.restore();
 
             // 2. Draw MP Skeleton
-            outCtx.save();
-            outCtx.translate(outputCanvas.width, 0);
-            outCtx.scale(-1, 1);
             outCtx.drawImage(mpCanvas, 0, 0);
-            outCtx.restore();
 
             // 3. Draw Three.js (already mapped naturally)
             outCtx.drawImage(threeCanvas, 0, 0);
