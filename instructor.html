@@ -476,7 +476,7 @@
             <pre id="schema-json" class="mono text-cyan"></pre>
             <div class="flex" style="gap: 1rem; margin-top: 1rem;">
                 <button onclick="copySchema()">Copy JSON</button>
-                <button class="primary" onclick="saveProcedure()">💾 Save to LocalStorage</button>
+                <button class="primary" onclick="saveInstructorProcedure()">💾 Save to LocalStorage</button>
             </div>
         </div>
     </div>
@@ -824,12 +824,58 @@
             alert("JSON copied to clipboard!");
         }
 
-        function saveProcedure() {
-            const sc = generateSchema();
-            let arr = JSON.parse(localStorage.getItem('customProcedures') || '[]');
-            arr.push(sc);
-            localStorage.setItem('customProcedures', JSON.stringify(arr));
-            alert("Procedure saved successfully! Students can now load this procedure.");
+        function saveInstructorProcedure() {
+            const name = document.getElementById('procName').value.trim();
+            const domain = document.getElementById('procDomain').value;
+
+            if (!name || !domain) {
+                alert('Please enter procedure name and domain');
+                return;
+            }
+
+            // Collect all step cards from DOM
+            const stepCards = document.querySelectorAll('.step-card');
+            if (stepCards.length === 0) {
+                alert('Please add at least one step');
+                return;
+            }
+
+            const steps = [];
+            stepCards.forEach((card, index) => {
+                steps.push({
+                    id: index + 1,
+                    name: card.querySelector('.step-name')?.value || 'Step ' + (index + 1),
+                    severity: card.querySelector('.step-severity')?.value || 'minor',
+                    requirements: {
+                        grip_angle: {
+                            min: parseInt(card.querySelector('.step-min-angle')?.value) || 20,
+                            max: parseInt(card.querySelector('.step-max-angle')?.value) || 60,
+                            joints: [4, 0, 8]
+                        },
+                        zone: card.querySelector('.step-zone')?.value || 'center',
+                        dwell_time: parseInt(card.querySelector('.step-dwell')?.value) || 2
+                    },
+                    alert_minor: card.querySelector('.step-alert-minor')?.value || 'Adjust position',
+                    alert_critical: card.querySelector('.step-alert-critical')?.value || 'STOP — incorrect technique'
+                });
+            });
+
+            const procedure = {
+                id: 'custom_' + Date.now(),
+                procedure: name,
+                domain: domain,
+                createdBy: 'instructor',
+                createdAt: new Date().toISOString(),
+                steps: steps
+            };
+
+            // Save to localStorage
+            let saved = JSON.parse(localStorage.getItem('instructorProcedures') || '[]');
+            saved.push(procedure);
+            localStorage.setItem('instructorProcedures', JSON.stringify(saved));
+
+            alert('Procedure saved! Students can now see it in their selector.');
+            console.log('Saved procedure:', procedure);
         }
 
         function previewProcedure() {

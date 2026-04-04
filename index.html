@@ -958,6 +958,48 @@
                 };
                 list.appendChild(div);
             });
+            loadInstructorProcedures();
+        }
+
+        function loadInstructorProcedures() {
+            const saved = JSON.parse(localStorage.getItem('instructorProcedures') || '[]');
+            if (saved.length === 0) return;
+
+            // Filter by current domain
+            const domainProcedures = saved.filter(p => p.domain === selectedDomain);
+            if (domainProcedures.length === 0) return;
+
+            // Add to PROCEDURES object so state machine can access them
+            domainProcedures.forEach(proc => {
+                PROCEDURES[proc.id] = proc;
+            });
+
+            // Find the procedure list container and append new cards
+            const container = document.getElementById('procedureList') || document.getElementById('procedure-list');
+            if (!container) return;
+
+            domainProcedures.forEach(proc => {
+                const card = document.createElement('div');
+                card.className = 'procedure-card instructor-created';
+                card.style.borderColor = '#7b2fff'; // purple border = instructor created
+                card.innerHTML = `
+      <div class="proc-header">
+        <span class="proc-name">${proc.procedure}</span>
+        <span class="proc-badge" style="background:#7b2fff">Custom</span>
+        <span class="proc-badge">${proc.steps.length} steps</span>
+      </div>
+      <div class="proc-meta">Created by Instructor · ${proc.domain}</div>
+      <div class="proc-actions" style="display:none">
+        <button onclick="viewProcedureSteps('${proc.id}')">📋 View Steps</button>
+        <button onclick="startSession('${proc.id}')">▶ Start Practice</button>
+      </div>
+    `;
+                card.onclick = () => {
+                    document.querySelectorAll('.proc-actions').forEach(a => a.style.display = 'none');
+                    card.querySelector('.proc-actions').style.display = 'flex';
+                };
+                container.appendChild(card);
+            });
         }
 
         function viewSteps(id) {
@@ -1139,8 +1181,10 @@
         // MEDIAPIPE & MATH
         // ==========================================
         function onResults(results) {
-            if (!sessionActive || sessionPaused || fatigueDetected) return;
+            if (!sessionActive || sessionPaused) return;
 
+            // ALWAYS draw the video frame so the camera feed never freezes,
+            // even during a fatigue rest period.
             ctx.save();
             ctx.clearRect(0, 0, sessionCanvas.width, sessionCanvas.height);
             ctx.drawImage(results.image, 0, 0, sessionCanvas.width, sessionCanvas.height);
@@ -1156,7 +1200,11 @@
                 drawConnectors(ctx, landmarks, HAND_CONNECTIONS, { color: '#00FF00', lineWidth: 2 });
                 drawLandmarks(ctx, landmarks, { color: '#FF0000', lineWidth: 1, radius: 2 });
 
-                processFrame(landmarks);
+                // Only drive the state machine when NOT in fatigue rest.
+                // The camera feed and skeleton drawing still continue.
+                if (!fatigueDetected) {
+                    processFrame(landmarks);
+                }
             }
             ctx.restore();
         }
@@ -1190,32 +1238,40 @@
         }
 
         // ==========================================
-        // FATIGUE DETECTION
+        // FATIGUE DETECTION (non-blocking, try/catch guarded)
         // ==========================================
         function updateFatigue(landmarks) {
-            const wrist = landmarks[0];
-            wristHistory.push({ x: wrist.x, y: wrist.y });
-            if (wristHistory.length > 30) wristHistory.shift();
+            try {
+                const wrist = landmarks[0];
+                wristHistory.push({ x: wrist.x, y: wrist.y });
+                if (wristHistory.length > 30) wristHistory.shift();
 
-            if (wristHistory.length < 30) return 0;
+                if (wristHistory.length < 30) return 0;
 
-            const meanX = wristHistory.reduce((s, p) => s + p.x, 0) / 30;
-            const meanY = wristHistory.reduce((s, p) => s + p.y, 0) / 30;
-            const varX = wristHistory.reduce((s, p) => s + Math.pow(p.x - meanX, 2), 0) / 30;
-            const varY = wristHistory.reduce((s, p) => s + Math.pow(p.y - meanY, 2), 0) / 30;
-            const fatigueScore = (Math.sqrt(varX) + Math.sqrt(varY)) / 2;
+                const meanX = wristHistory.reduce((s, p) => s + p.x, 0) / 30;
+                const meanY = wristHistory.reduce((s, p) => s + p.y, 0) / 30;
+                const varX = wristHistory.reduce((s, p) => s + Math.pow(p.x - meanX, 2), 0) / 30;
+                const varY = wristHistory.reduce((s, p) => s + Math.pow(p.y - meanY, 2), 0) / 30;
+                const fatigueScore = (Math.sqrt(varX) + Math.sqrt(varY)) / 2;
 
-            fatigueHistory.push(fatigueScore);
-            if (fatigueHistory.length > 60) fatigueHistory.shift();
+                if (!isFinite(fatigueScore)) return 0; // guard against NaN / Infinity
 
-            if (fatigueScore > 0.015 && !fatigueDetected) {
-                fatigueDetected = true;
-                triggerFatigueAlert();
+                fatigueHistory.push(fatigueScore);
+                if (fatigueHistory.length > 60) fatigueHistory.shift();
+
+                if (fatigueScore > 0.015 && !fatigueDetected) {
+                    fatigueDetected = true;
+                    // Non-blocking: update DOM instead of alert()
+                    triggerFatigueAlert();
+                }
+
+                drawFatigueChart(fatigueHistory);
+                if (frameCount % 60 === 0) console.log("Fatigue Score:", fatigueScore.toFixed(4));
+                return fatigueScore;
+            } catch (e) {
+                console.warn('[Fatigue] calculation error (non-fatal):', e.message);
+                return 0;
             }
-
-            drawFatigueChart(fatigueHistory);
-            if (frameCount % 60 === 0) console.log("Fatigue Score:", fatigueScore.toFixed(4));
-            return fatigueScore;
         }
 
         function drawFatigueChart(history) {
@@ -1270,11 +1326,24 @@
             const joints = step.requirements.grip_angle.joints;
             const angle = calculateAngle(landmarks[joints[0]], landmarks[joints[1]], landmarks[joints[2]]);
             const zone = getHandZone(landmarks);
-            const fatigueScore = updateFatigue(landmarks);
 
             const angleOk = angle >= step.requirements.grip_angle.min && angle <= step.requirements.grip_angle.max;
             const zoneOk = zone === step.requirements.zone.toUpperCase();
             const allOk = angleOk && zoneOk;
+
+            // ── RECORD FRAME FIRST (before fatigue can potentially skip) ──
+            // This guarantees every captured frame makes it into the replay
+            // data pipeline regardless of downstream fatigue/error states.
+            if (frameCount % 3 === 0) { // ~10fps for replay
+                sessionFrames.push({
+                    t: Date.now() - sessionStartTime,
+                    lm: landmarks.map(l => ({ x: l.x, y: l.y, z: l.z })),
+                    angle: angle, zone: zone, correct: allOk, stepId: step.id
+                });
+            }
+
+            // ── FATIGUE (non-blocking, guarded) ──
+            const fatigueScore = updateFatigue(landmarks);
 
             updateParameterPanel(angle, step, zone, allOk);
             drawIdealGhost(landmarks, step, allOk);
@@ -1308,15 +1377,6 @@
                 if (frameCount % 15 === 0) {
                     sessionErrors.push({ timestamp: Date.now() - sessionStartTime, stepId: step.id, angle: angle.toFixed(1), zone: zone, severity: severity, message: alertMsg });
                 }
-            }
-
-            // Record frame for replay
-            if (frameCount % 3 === 0) { // 10fps for replay
-                sessionFrames.push({
-                    t: Date.now() - sessionStartTime,
-                    lm: landmarks.map(l => ({ x: l.x, y: l.y, z: l.z })),
-                    angle: angle, zone: zone, correct: allOk, stepId: step.id
-                });
             }
 
             const accuracy = Math.round((correctFrames / frameCount) * 100);
@@ -1723,12 +1783,23 @@
             // Hide 3D ghost hand
             hideGhostHand3D();
 
+            // Guard against divide-by-zero when no frames were processed
+            const accuracy = frameCount > 0
+                ? Math.round((correctFrames / frameCount) * 100)
+                : 0;
+
+            // Warn if session recording is empty
+            if (sessionFrames.length === 0) {
+                console.error('[Session] No frames were recorded. The replay will be empty.');
+                document.getElementById('ai-coach-text').innerText = '⚠ Session ended with 0 recorded frames. Replay unavailable.';
+            }
+
             const sessionData = {
                 procedure: currentProcedure.procedure,
                 domain: selectedDomain,
                 date: new Date().toISOString(),
                 duration: Date.now() - sessionStartTime,
-                accuracy: Math.round((correctFrames / frameCount) * 100),
+                accuracy: accuracy,
                 errors: sessionErrors,
                 frames: sessionFrames,
                 completedSteps: completedSteps,
@@ -1736,7 +1807,16 @@
                 fatigueEvents: fatigueEvents
             };
 
-            localStorage.setItem('lastSession', JSON.stringify(sessionData));
+            try {
+                localStorage.setItem('lastSession', JSON.stringify(sessionData));
+            } catch (e) {
+                console.error('[Session] localStorage save failed (data too large?):', e.message);
+                // Attempt a compressed save with frames trimmed
+                sessionData.frames = sessionData.frames.slice(-300);
+                try { localStorage.setItem('lastSession', JSON.stringify(sessionData)); }
+                catch (e2) { console.error('[Session] Even trimmed save failed:', e2.message); }
+            }
+
             showScreen('screen-report');
             renderReport(sessionData);
         }
@@ -1813,8 +1893,16 @@
         let replayLoopId = null;
 
         function setupReplay() {
-            replayData = JSON.parse(localStorage.getItem('lastSession'));
-            if (!replayData || !replayData.frames || replayData.frames.length === 0) return;
+            try {
+                replayData = JSON.parse(localStorage.getItem('lastSession'));
+            } catch (e) {
+                replayData = null;
+            }
+
+            if (!replayData || !replayData.frames || replayData.frames.length === 0) {
+                alert('No session recording data found. Complete a practice session first.');
+                return;
+            }
 
             showScreen('screen-replay');
             document.getElementById('replayTimeline').max = replayData.frames.length - 1;
@@ -1861,8 +1949,12 @@
         }
 
         function drawReplayFrame() {
-            if (!replayData || !replayData.frames[replayFrameIdx]) return;
+            // Bounds-check: prevent undefined index errors when iterating replayData
+            if (!replayData || !replayData.frames || replayData.frames.length === 0) return;
+            if (replayFrameIdx < 0 || replayFrameIdx >= replayData.frames.length) return;
+
             const frame = replayData.frames[replayFrameIdx];
+            if (!frame || !frame.lm || frame.lm.length < 21) return; // malformed frame guard
 
             const cS = document.getElementById('replayStudent');
             const cI = document.getElementById('replayIdeal');
@@ -1872,14 +1964,25 @@
             ctxS.clearRect(0, 0, cS.width, cS.height);
             ctxI.clearRect(0, 0, cI.width, cI.height);
 
-            // Draw Student
+            // Draw Student skeleton
             const lm = frame.lm;
             const colorS = frame.correct ? '#00ff9d' : '#ff3366';
             drawConnectors(ctxS, lm, HAND_CONNECTIONS, { color: colorS, lineWidth: 2 });
             drawLandmarks(ctxS, lm, { color: colorS, lineWidth: 1, radius: 2 });
 
             // Draw Ideal hand skeleton using recorded or generated landmarks
-            const stepForFrame = currentProcedure ? currentProcedure.steps.find(s => s.id === frame.stepId) : null;
+            // Safely resolve procedure — it may be null if the user navigated
+            // directly to replay without a currentProcedure loaded.
+            let procRef = currentProcedure;
+            if (!procRef) {
+                // Try to reconstruct from stored session data
+                try {
+                    const storedProc = Object.values(PROCEDURES).find(p => p.procedure === replayData.procedure);
+                    if (storedProc) procRef = storedProc;
+                } catch (_) { /* ignore */ }
+            }
+
+            const stepForFrame = procRef ? procRef.steps.find(s => s.id === frame.stepId) : null;
             if (stepForFrame) {
                 const rawIdealLm = stepForFrame.ideal_landmarks || generateIdealLandmarks(stepForFrame);
 
@@ -1893,10 +1996,12 @@
                 ctxS.lineWidth = 2;
                 ctxS.setLineDash([5, 3]);
                 GHOST_CONNECTIONS.forEach(([a, b]) => {
-                    ctxS.beginPath();
-                    ctxS.moveTo(alignedLm[a].x * wS, alignedLm[a].y * hS);
-                    ctxS.lineTo(alignedLm[b].x * wS, alignedLm[b].y * hS);
-                    ctxS.stroke();
+                    if (a < alignedLm.length && b < alignedLm.length) {
+                        ctxS.beginPath();
+                        ctxS.moveTo(alignedLm[a].x * wS, alignedLm[a].y * hS);
+                        ctxS.lineTo(alignedLm[b].x * wS, alignedLm[b].y * hS);
+                        ctxS.stroke();
+                    }
                 });
                 ctxS.setLineDash([]);
                 ctxS.fillStyle = 'rgba(0, 229, 255, 0.55)';
@@ -1915,10 +2020,12 @@
                 ctxI.strokeStyle = 'rgba(0, 255, 157, 0.7)';
                 ctxI.lineWidth = 2;
                 GHOST_CONNECTIONS.forEach(([a, b]) => {
-                    ctxI.beginPath();
-                    ctxI.moveTo(rawIdealLm[a].x * W, rawIdealLm[a].y * H);
-                    ctxI.lineTo(rawIdealLm[b].x * W, rawIdealLm[b].y * H);
-                    ctxI.stroke();
+                    if (a < rawIdealLm.length && b < rawIdealLm.length) {
+                        ctxI.beginPath();
+                        ctxI.moveTo(rawIdealLm[a].x * W, rawIdealLm[a].y * H);
+                        ctxI.lineTo(rawIdealLm[b].x * W, rawIdealLm[b].y * H);
+                        ctxI.stroke();
+                    }
                 });
                 ctxI.fillStyle = 'rgba(0, 255, 157, 0.8)';
                 rawIdealLm.forEach(p => {

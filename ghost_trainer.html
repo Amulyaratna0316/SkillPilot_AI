@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ghost Hand Trainer — Standalone</title>
+
+    <link
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@400;600&family=Space+Mono&display=swap"
+        rel="stylesheet">
+
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <!-- MediaPipe -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"
+        crossorigin="anonymous"></script>
+
+    <style>
+        :root {
+            --bg: #080c14;
+            --surface: #101622;
+            --surface2: #161f2e;
+            --border: #1e2b3c;
+            --accent: #00e5ff;
+            --accent-hover: #00b3cc;
+            --text: #e2e8f0;
+            --muted: #8a9bb2;
+            --success: #00ff9d;
+            --danger: #ff3366;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Rajdhani', sans-serif;
+            overflow-x: hidden;
+            display: flex;
+            min-height: 100vh;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4,
+        .orbitron {
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        .mono {
+            font-family: 'Space Mono', monospace;
+        }
+
+        button {
+            background: rgba(0, 229, 255, 0.1);
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            padding: 8px 16px;
+            font-family: 'Orbitron', sans-serif;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: 0.3s;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+        }
+
+        button:hover:not(:disabled) {
+            background: rgba(0, 229, 255, 0.2);
+            box-shadow: 0 0 10px rgba(0, 229, 255, 0.3);
+        }
+
+        button:disabled {
+            opacity: 0.4;
+            border-color: var(--muted);
+            color: var(--muted);
+            cursor: not-allowed;
+        }
+
+        button.danger {
+            border-color: var(--danger);
+            color: var(--danger);
+            background: rgba(255, 51, 102, 0.1);
+        }
+
+        button.danger:hover:not(:disabled) {
+            background: rgba(255, 51, 102, 0.2);
+            box-shadow: 0 0 10px rgba(255, 51, 102, 0.3);
+        }
+
+        button.success {
+            border-color: var(--success);
+            color: var(--success);
+            background: rgba(0, 255, 157, 0.1);
+        }
+
+        input[type="text"],
+        input[type="password"] {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 8px 12px;
+            font-family: 'Space Mono', monospace;
+            border-radius: 4px;
+            width: 100%;
+            margin-bottom: 0.5rem;
+        }
+
+        .layout {
+            display: flex;
+            width: 100%;
+            height: 100vh;
+        }
+
+        .sidebar {
+            width: 380px;
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            padding: 1rem;
+            overflow-y: auto;
+        }
+
+        .main-stage {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #000;
+            position: relative;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .panel {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        /* 
+         * ARCHITECTURE — THREE LAYERED CANVASES 
+         */
+        .canvas-container {
+            position: relative;
+            width: 640px;
+            height: 480px;
+            border: 1px solid var(--border);
+            background: #111;
+            overflow: hidden;
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+        }
+
+        .canvas-container video,
+        .canvas-container canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        #webcam-video {
+            z-index: 1;
+            display: none;
+        }
+
+        /* Used as source, drawn to mp-canvas inside composite logic if needed, but normally just mapped below */
+        /* UI requirements: Video layer 1, MP layer 2, Three layer 3 */
+        #layer1-video {
+            z-index: 1;
+            transform: scaleX(-1);
+        }
+
+        #mp-canvas {
+            z-index: 2;
+            transform: scaleX(-1);
+        }
+
+        #three-canvas {
+            z-index: 3;
+        }
+
+        /* The output canvas for MediaRecorder compositing */
+        #output-canvas {
+            display: none;
+        }
+
+        .controls-row {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .step-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .step-item {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            padding: 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .step-item:hover {
+            border-color: var(--accent);
+        }
+
+        .step-item.active {
+            border-color: var(--success);
+            background: rgba(0, 255, 157, 0.1);
+        }
+
+        #replay-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        #replay-video {
+            max-width: 90%;
+            max-height: 80%;
+            border: 2px solid var(--accent);
+            border-radius: 8px;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 2rem;
+            color: #fff;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="layout">
+        <!-- Control Panel -->
+        <div class="sidebar">
+            <h1 class="orbitron text-cyan"
+                style="font-size: 1.5rem; margin-bottom: 2rem; border-bottom: 1px solid var(--border); padding-bottom: 1rem;">
+                Ghost Hand Protocol</h1>
+
+            <div class="panel">
+                <h3 class="orbitron text-cyan" style="margin-bottom: 0.5rem; font-size: 1rem;">⚙ Configuration</h3>
+                <div id="status-text" class="mono muted" style="font-size: 0.8rem; margin-bottom: 1rem;">Initializing AI
+                    models...</div>
+
+                <input type="password" id="gemini-key" placeholder="Gemini API Key"
+                    title="Required for text-to-step and video extraction">
+                <button onclick="saveKey()"
+                    style="width:100%; border:1px solid var(--muted); color:var(--text); background:transparent;">Save
+                    API Key LocalStorage</button>
+            </div>
+
+            <div class="panel">
+                <h3 class="orbitron text-cyan" style="margin-bottom: 0.5rem; font-size: 1rem;">📝 Record Step (Text)
+                </h3>
+                <p class="mono muted" style="font-size: 0.75rem; margin-bottom: 0.5rem;">Pose hand, write description,
+                    click Record.</p>
+                <textarea id="step-desc" rows="3"
+                    placeholder="E.g. Hold scalpel between thumb and index finger at 30 degree angle"
+                    style="width:100%; background:var(--surface); border:1px solid var(--border); color:#fff; padding:8px; font-family:monospace; resize:none; font-size:0.8rem; margin-bottom:0.5rem;"></textarea>
+                <button class="w-full" onclick="recordTextStep()" id="btn-text-rec">Record Step via Gemini</button>
+            </div>
+
+            <div class="panel">
+                <h3 class="orbitron text-cyan" style="margin-bottom: 0.5rem; font-size: 1rem;">🎥 Extract via Video</h3>
+                <p class="mono muted" style="font-size: 0.75rem; margin-bottom: 0.5rem;">Upload demo video for Gemini
+                    framewise extraction.</p>
+                <input type="file" id="video-upload" accept="video/*" style="display:none;"
+                    onchange="handleVideoUpload(event)">
+                <button class="w-full" onclick="document.getElementById('video-upload').click()">Upload Video</button>
+                <video id="hidden-demo-video" controls
+                    style="display:none; width:100%; margin-top:0.5rem; border: 1px solid var(--border);"></video>
+            </div>
+
+            <div class="panel" style="flex:1;">
+                <h3 class="orbitron text-cyan" style="margin-bottom: 0.5rem; font-size: 1rem;">📋 Procedure Steps</h3>
+                <div class="step-list" id="step-list">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Viewing Area -->
+        <div class="main-stage">
+
+            <div style="width: 640px; margin-bottom: 1rem; display: flex; justify-content: space-between;">
+                <h2 class="orbitron" id="mode-title">Instructor Builder Mode</h2>
+                <div id="rec-badge" class="orbitron text-danger" style="display:none; animation: pulse 1s infinite;">●
+                    RECORDING</div>
+            </div>
+
+            <div class="canvas-container">
+                <!-- Video layer 1: actual view mirror -->
+                <video id="layer1-video" autoplay playsinline></video>
+                <!-- MP overlay 2 -->
+                <canvas id="mp-canvas" width="640" height="480"></canvas>
+                <!-- ThreeJS ghost hand 3 -->
+                <canvas id="three-canvas" width="640" height="480"></canvas>
+            </div>
+
+            <!-- Hidden output for MediaRecorder compositing -->
+            <canvas id="output-canvas" width="640" height="480"></canvas>
+
+            <div class="controls-row" style="width: 640px; justify-content: center; gap: 1rem; margin-top: 2rem;">
+                <button onclick="togglePlaybackDemo()">▶ Play Ghost</button>
+                <button class="success" onclick="startPracticeMode()">🎓 Start Practice</button>
+                <button class="danger" id="btn-record" onclick="toggleSessionRecording()">⏺ Record Session</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="replay-modal">
+        <div class="close-btn" onclick="document.getElementById('replay-modal').style.display='none'">&times;</div>
+        <h2 class="orbitron text-cyan" style="margin-bottom: 1rem;">Session Replay</h2>
+        <video id="replay-video" controls autoplay></video>
+        <button style="margin-top: 1rem;" class="success" onclick="downloadReplay()">📥 Download MP4</button>
+    </div>
+
+    <script>
+        // =====================================
+        // GLOBAL STATE
+        // =====================================
+        let currentHandLandmarks = null;
+        let recordedSteps = [];
+        let activeStepIndex = -1;
+        let isPracticeMode = false;
+
+        let ghostMode = 'IDLE'; // IDLE, LERPING
+        let targetGhostLandmarks = null;
+        let currentGhostLandmarks = [];
+
+        let statusTxt = document.getElementById('status-text');
+
+        window.onload = () => {
+            const lsKey = localStorage.getItem('standAloneGeminiKey');
+            if (lsKey) document.getElementById('gemini-key').value = lsKey;
+        };
+        function saveKey() {
+            localStorage.setItem('standAloneGeminiKey', document.getElementById('gemini-key').value);
+            alert('Saved');
+        }
+
+        // =====================================
+        // MEDIA RECORDER SETUP
+        // =====================================
+        let mediaRecorder;
+        let recordedChunks = [];
+        let isRecordingSession = false;
+        let blobUrl = null;
+
+        const outputCanvas = document.getElementById('output-canvas');
+        const outCtx = outputCanvas.getContext('2d');
+        const videoElement = document.getElementById('layer1-video');
+        const mpCanvas = document.getElementById('mp-canvas');
+        const mpCtx = mpCanvas.getContext('2d');
+        const threeCanvas = document.getElementById('three-canvas');
+
+        // Composite layers into outputCanvas
+        function compositeFrame() {
+            outCtx.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
+            // 1. Draw video (mirrored)
+            outCtx.save();
+            outCtx.translate(outputCanvas.width, 0);
+            outCtx.scale(-1, 1);
+            if (videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
+                outCtx.drawImage(videoElement, 0, 0, outputCanvas.width, outputCanvas.height);
+            }
+            outCtx.restore();
+
+            // 2. Draw MP Skeleton
+            outCtx.save();
+            outCtx.translate(outputCanvas.width, 0);
+            outCtx.scale(-1, 1);
+            outCtx.drawImage(mpCanvas, 0, 0);
+            outCtx.restore();
+
+            // 3. Draw Three.js (already mapped naturally)
+            outCtx.drawImage(threeCanvas, 0, 0);
+
+            if (isRecordingSession) requestAnimationFrame(compositeFrame);
+        }
+
+        function toggleSessionRecording() {
+            if (!isRecordingSession) {
+                // START
+                recordedChunks = [];
+                const stream = outputCanvas.captureStream(30);
+                mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9' });
+
+                mediaRecorder.ondataavailable = e => {
+                    if (e.data.size > 0) recordedChunks.push(e.data);
+                };
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                    blobUrl = URL.createObjectURL(blob);
+                    document.getElementById('replay-video').src = blobUrl;
+                    document.getElementById('replay-modal').style.display = 'flex';
+                };
+
+                isRecordingSession = true;
+                compositeFrame(); // start composite loop
+                mediaRecorder.start();
+                document.getElementById('btn-record').innerText = '⏹ Stop & Replay';
+                document.getElementById('btn-record').style.background = 'rgba(255,51,102,0.3)';
+                document.getElementById('rec-badge').style.display = 'block';
+            } else {
+                // STOP
+                isRecordingSession = false;
+                mediaRecorder.stop();
+                document.getElementById('btn-record').innerText = '⏺ Record Session';
+                document.getElementById('btn-record').style.background = 'rgba(255,51,102,0.1)';
+                document.getElementById('rec-badge').style.display = 'none';
+            }
+        }
+
+        function downloadReplay() {
+            if (!blobUrl) return;
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = blobUrl;
+            a.download = `SkillPilot_Ghost_Session.webm`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        // =====================================
+        // THREE.JS RENDERER & GHOST HAND LOGIC
+        // =====================================
+        const scene = new THREE.Scene();
+
+        // Use OrthographicCamera (-1, 1, 1, -1, 0.1, 100) exactly as requested
+        const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
+        camera.position.set(0, 0, 5);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({
+            canvas: threeCanvas,
+            alpha: true,
+            antialias: true
+        });
+        renderer.setClearColor(0x000000, 0);
+        renderer.setSize(640, 480);
+
+        // Lighting
+        scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+        const dirLight = new THREE.DirectionalLight(0x14B8A6, 0.6);
+        dirLight.position.set(0, 1, 2);
+        scene.add(dirLight);
+        const pointLight = new THREE.PointLight(0x00FF88, 0.4, 10);
+        pointLight.position.set(0, 0, 1);
+        scene.add(pointLight);
+
+        // Geometries
+        const palmGeom = new THREE.BoxGeometry(0.15, 0.1, 0.03);
+        const fingerBoneGeom = new THREE.CylinderGeometry(0.012, 0.014, 1, 8);
+        fingerBoneGeom.rotateX(Math.PI / 2); // Orient along Z axis for lookAt
+        const thumbBoneGeom = new THREE.CylinderGeometry(0.014, 0.016, 1, 8);
+        thumbBoneGeom.rotateX(Math.PI / 2);
+        const jointGeom = new THREE.SphereGeometry(0.014, 8, 8);
+        const tipGeom = new THREE.SphereGeometry(0.016, 8, 8);
+
+        // Materials
+        const tealMat = new THREE.MeshPhongMaterial({
+            color: 0x14B8A6,
+            transparent: true,
+            opacity: 0.35,
+            wireframe: false,
+            side: THREE.DoubleSide
+        });
+        const jointMat = new THREE.MeshPhongMaterial({
+            color: 0x14B8A6, transparent: true, opacity: 0.5
+        });
+        const tipMat = new THREE.MeshPhongMaterial({
+            color: 0x00FF88, transparent: true, opacity: 0.7
+        });
+
+        // Initialize structures
+        const ghostObjects = {
+            palm: new THREE.Mesh(palmGeom, tealMat),
+            nodes: [],
+            bones: []
+        };
+        scene.add(ghostObjects.palm);
+
+        for (let i = 0; i < 21; i++) {
+            const isTip = [4, 8, 12, 16, 20].includes(i);
+            const mesh = new THREE.Mesh(isTip ? tipGeom : jointGeom, isTip ? tipMat : jointMat);
+            ghostObjects.nodes.push(mesh);
+            scene.add(mesh);
+        }
+
+        const CONNECTIONS = [
+            [0, 1], [1, 2], [2, 3], [3, 4],       // thumb (0..3)
+            [0, 5], [5, 6], [6, 7], [7, 8],       // index
+            [0, 9], [9, 10], [10, 11], [11, 12],  // middle
+            [0, 13], [13, 14], [14, 15], [15, 16],// ring
+            [0, 17], [17, 18], [18, 19], [19, 20] // pinky
+        ];
+
+        CONNECTIONS.forEach((conn, idx) => {
+            const isThumb = idx < 4;
+            const mesh = new THREE.Mesh(isThumb ? thumbBoneGeom : fingerBoneGeom, tealMat);
+            ghostObjects.bones.push(mesh);
+            scene.add(mesh);
+        });
+
+        // Conversion function: exactly as prescribed
+        function mpToThree(landmark, videoWidth, videoHeight) {
+            return new THREE.Vector3(
+                -(landmark.x - 0.5) * 2,    // flip X, center at 0
+                -(landmark.y - 0.5) * 2,    // flip Y, center at 0  
+                -landmark.z * 2             // depth
+            );
+        }
+
+        function updateGhostHand(landmarks) {
+            if (!landmarks || landmarks.length < 21) {
+                scene.visible = false;
+                return;
+            }
+            scene.visible = true;
+
+            const vecs = landmarks.map(lm => mpToThree(lm, 640, 480));
+
+            // Position nodes
+            for (let i = 0; i < 21; i++) {
+                ghostObjects.nodes[i].position.copy(vecs[i]);
+            }
+
+            // Approximate palm placing
+            const pCenter = vecs[0].clone().add(vecs[9]).multiplyScalar(0.5);
+            ghostObjects.palm.position.copy(pCenter);
+            ghostObjects.palm.lookAt(vecs[9]);
+            ghostObjects.palm.rotateX(Math.PI / 2); // Align box with up
+
+            // Assign Bones via midpoint and scaling length
+            CONNECTIONS.forEach((conn, i) => {
+                const a = vecs[conn[0]];
+                const b = vecs[conn[1]];
+                const bone = ghostObjects.bones[i];
+                bone.position.copy(a).add(b).multiplyScalar(0.5);
+                bone.scale.set(1, 1, a.distanceTo(b));
+                bone.lookAt(b);
+            });
+
+            // Animation / Pulsing Opacity logic
+            let opc = 0.35;
+            if (activeStepIndex >= 0 && recordedSteps[activeStepIndex] && isPracticeMode) {
+                const step = recordedSteps[activeStepIndex];
+                if (step.action_type === 'HOLD' || step.action_type === 'POSITION') {
+                    // "Ghost hand pulses opacity 0.2 to 0.5 indicating maintain position"
+                    opc = 0.35 + Math.sin(Date.now() * 0.003) * 0.15;
+                }
+            }
+            tealMat.opacity = opc;
+        }
+
+        function renderLoop() {
+            requestAnimationFrame(renderLoop);
+
+            if (ghostMode === 'LERPING' && targetGhostLandmarks) {
+                // Smooth animation interpolation to target position
+                if (currentGhostLandmarks.length === 0) {
+                    currentGhostLandmarks = targetGhostLandmarks.map(l => ({ x: l.x, y: l.y, z: l.z }));
+                } else {
+                    for (let i = 0; i < 21; i++) {
+                        currentGhostLandmarks[i].x += (targetGhostLandmarks[i].x - currentGhostLandmarks[i].x) * 0.1;
+                        currentGhostLandmarks[i].y += (targetGhostLandmarks[i].y - currentGhostLandmarks[i].y) * 0.1;
+                        currentGhostLandmarks[i].z += (targetGhostLandmarks[i].z - currentGhostLandmarks[i].z) * 0.1;
+                    }
+                }
+                updateGhostHand(currentGhostLandmarks);
+            }
+            else if (!isPracticeMode && currentHandLandmarks) {
+                // In instructor recording mode, tie directly to tracking
+                updateGhostHand(currentHandLandmarks);
+            }
+
+            renderer.render(scene, camera);
+        }
+        renderLoop();
+
+        // =====================================
+        // MEDIAPIPE INITIALIZATION
+        // =====================================
+        const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.5
+        });
+
+        hands.onResults(results => {
+            mpCtx.save();
+            mpCtx.clearRect(0, 0, mpCanvas.width, mpCanvas.height);
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                currentHandLandmarks = results.multiHandLandmarks[0];
+                drawConnectors(mpCtx, currentHandLandmarks, HAND_CONNECTIONS, { color: '#00e5ff', lineWidth: 2 });
+                drawLandmarks(mpCtx, currentHandLandmarks, { color: '#00ff9d', lineWidth: 1, radius: 2 });
+            } else {
+                currentHandLandmarks = null;
+            }
+            mpCtx.restore();
+        });
+
+        const camUrl = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({ image: videoElement });
+            },
+            width: 640,
+            height: 480
+        });
+        camUrl.start().then(() => {
+            statusTxt.innerText = "Camera & Models Ready";
+        });
+
+        // =====================================
+        // GEMINI API — TEXT STEP BUILDER
+        // =====================================
+        async function recordTextStep() {
+            const key = document.getElementById('gemini-key').value.trim();
+            const desc = document.getElementById('step-desc').value.trim();
+
+            if (!currentHandLandmarks) return alert("Hold your hand up first to lock the active pose.");
+            if (!key) return alert("Gemini API Key required.");
+            if (!desc) return alert("Please type a description.");
+
+            const btn = document.getElementById('btn-text-rec');
+            btn.disabled = true;
+            btn.innerText = "Analyzing...";
+
+            const prompt = `
+                Analyze this procedural step description for hand training:
+                "${desc}"
+                
+                Current hand landmark positions: ${JSON.stringify(currentHandLandmarks.slice(0, 3))}...
+                
+                Return JSON with:
+                {
+                  "step_name": "brief name",
+                  "action_type": "GRIP, EXTEND, ROTATE, POSITION, or HOLD",
+                  "key_joints": [0,4,8],
+                  "grip_angle": {"joints": [0,5,9], "target": 45, "tolerance": 15},
+                  "zone": "center",
+                  "dwell_time": 2,
+                  "coaching_tip": "specific correction if student fails",
+                  "success_message": "message when step completed"
+                }
+            `;
+
+            try {
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                });
+
+                const data = await res.json();
+                let text = data.candidates[0].content.parts[0].text;
+                text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+                const stepObj = JSON.parse(text);
+
+                stepObj.ideal_landmarks = currentHandLandmarks.map(l => ({ x: l.x, y: l.y, z: l.z }));
+                recordedSteps.push(stepObj);
+
+                updateStepUI();
+                document.getElementById('step-desc').value = '';
+                statusTxt.innerText = `Recorded: ${stepObj.step_name}`;
+            } catch (e) {
+                console.error(e);
+                alert("Gemini structure conversion failed.");
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Record Step via Gemini";
+            }
+        }
+
+        // =====================================
+        // GEMINI VISION — VIDEO EXTRACT
+        // =====================================
+        async function handleVideoUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const key = document.getElementById('gemini-key').value.trim();
+            if (!key) return alert("Gemini API Key required for vision processing.");
+
+            const url = URL.createObjectURL(file);
+            const vid = document.getElementById('hidden-demo-video');
+            vid.src = url;
+            vid.style.display = 'block';
+
+            statusTxt.innerText = "Extracting frames and AI targets from video...";
+
+            await new Promise(r => vid.onloadeddata = r);
+            const dur = vid.duration;
+            const timestamps = [dur * 0.25, dur * 0.6, dur * 0.85];
+
+            const tmpCanvas = document.createElement('canvas');
+            tmpCanvas.width = 640; tmpCanvas.height = 480;
+            const tmpCtx = tmpCanvas.getContext('2d');
+
+            const vidHands = new Hands({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
+            vidHands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+
+            let extractedLms = null;
+            vidHands.onResults(r => {
+                if (r.multiHandLandmarks && r.multiHandLandmarks.length > 0) {
+                    extractedLms = r.multiHandLandmarks[0].map(l => ({ ...l }));
+                }
+            });
+
+            for (let i = 0; i < timestamps.length; i++) {
+                statusTxt.innerText = `Processing Frame ${i + 1} / ${timestamps.length}...`;
+                vid.currentTime = timestamps[i];
+                await new Promise(r => { vid.onseeked = r; setTimeout(r, 600); });
+
+                tmpCtx.drawImage(vid, 0, 0, 640, 480);
+                extractedLms = null;
+                await vidHands.send({ image: tmpCanvas });
+                await new Promise(r => setTimeout(r, 100));
+
+                const lms = extractedLms ? extractedLms.slice() : null;
+                if (!lms) continue;
+
+                const base64Data = tmpCanvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+                const prompt = `Analyze this procedural step frame. Return JSON:
+                {
+                  "step_name": "Autogen Step ${i + 1}",
+                  "action_type": "POSITION",
+                  "key_joints": [0,5,9],
+                  "grip_angle": {"joints": [0,5,9], "target": 45, "tolerance": 20},
+                  "zone": "center",
+                  "dwell_time": 2,
+                  "coaching_tip": "Maintain structure.",
+                  "success_message": "Good positioning."
+                }`;
+
+                try {
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{
+                                parts: [
+                                    { inline_data: { mime_type: "image/jpeg", data: base64Data } },
+                                    { text: prompt }
+                                ]
+                            }]
+                        })
+                    });
+                    const data = await res.json();
+                    let text = data.candidates[0].content.parts[0].text.replace(/```json/g, '').replace(/```/g, '').trim();
+                    const stepObj = JSON.parse(text);
+                    stepObj.ideal_landmarks = lms;
+                    recordedSteps.push(stepObj);
+                } catch (err) {
+                    console.log("Vision extraction error:", err);
+                }
+            }
+
+            updateStepUI();
+            vid.style.display = 'none';
+            statusTxt.innerText = `Video processed. ${recordedSteps.length} steps added.`;
+        }
+
+        // =====================================
+        // UI INTERACTION & PLAYBACK
+        // =====================================
+        function updateStepUI() {
+            const list = document.getElementById('step-list');
+            list.innerHTML = '';
+            recordedSteps.forEach((s, idx) => {
+                const el = document.createElement('div');
+                el.className = `step-item ${activeStepIndex === idx ? 'active' : ''}`;
+                el.innerHTML = `<strong>${idx + 1}. ${s.step_name}</strong><br><span class="muted" style="font-size:0.7rem;">Action: ${s.action_type || 'HOLD'} | Hold req: ${s.dwell_time}s</span>`;
+                el.onclick = () => selectStep(idx);
+                list.appendChild(el);
+            });
+        }
+
+        function selectStep(idx) {
+            activeStepIndex = idx;
+            updateStepUI();
+
+            if (isPracticeMode || document.getElementById('mode-title').innerText === 'Ghost Preview') {
+                targetGhostLandmarks = recordedSteps[idx].ideal_landmarks;
+                ghostMode = 'LERPING';
+                statusTxt.innerText = `Ghost animating to step: ${recordedSteps[idx].step_name}`;
+            }
+        }
+
+        function togglePlaybackDemo() {
+            if (recordedSteps.length === 0) return alert("Record steps first.");
+            isPracticeMode = false;
+            document.getElementById('mode-title').innerText = "Ghost Preview";
+            document.getElementById('layer1-video').style.opacity = '0.3';
+            selectStep(0);
+        }
+
+        function startPracticeMode() {
+            if (recordedSteps.length === 0) return alert("Record steps first.");
+            isPracticeMode = true;
+            document.getElementById('mode-title').innerText = "Live Training Mode";
+            document.getElementById('layer1-video').style.opacity = '1.0';
+            selectStep(0);
+        }
+    </script>
+</body>
+
+</html>
