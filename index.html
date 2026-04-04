@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SkillPilot_AI</title>
+    <title>SkillPilot AI</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,6 +16,8 @@
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 
     <style>
         :root {
@@ -244,6 +246,8 @@
             flex-direction: column;
             background: #000;
             position: relative;
+            padding: 0;
+            /* override panel padding so canvas fills fully */
         }
 
         .panel-right {
@@ -325,8 +329,25 @@
 
         #sessionCanvas {
             width: 100%;
-            height: calc(100% - 100px);
+            height: 100%;
             object-fit: contain;
+        }
+
+        .canvas-wrapper {
+            position: relative;
+            flex: 1;
+            min-height: 0;
+        }
+
+        #ghostCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            pointer-events: none;
+            z-index: 5;
         }
 
         .session-controls {
@@ -483,6 +504,89 @@
             background: var(--text);
             cursor: pointer;
         }
+
+        /* Recording Indicator */
+        .rec-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-family: 'Space Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--danger);
+            text-shadow: 0 0 5px black;
+        }
+
+        .rec-dot {
+            width: 10px;
+            height: 10px;
+            background: var(--danger);
+            border-radius: 50%;
+            animation: rec-pulse 1s infinite;
+            box-shadow: 0 0 6px var(--danger);
+        }
+
+        @keyframes rec-pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.3;
+            }
+        }
+
+        /* Improved step items */
+        .step-detail {
+            font-family: 'Space Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--muted);
+            margin-top: 4px;
+        }
+
+        .step-progress-mini {
+            width: 100%;
+            height: 3px;
+            background: var(--surface);
+            margin-top: 6px;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .step-progress-mini-fill {
+            height: 100%;
+            background: var(--accent);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        /* Instructor login on landing */
+        .instructor-login-section {
+            margin-top: 2rem;
+            text-align: center;
+        }
+
+        .instructor-login-form {
+            display: none;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            padding: 1.5rem;
+            border-radius: 8px;
+            width: 350px;
+            margin: 1rem auto 0;
+        }
+
+        .instructor-login-form.visible {
+            display: block;
+        }
+
+        .divider-text {
+            color: var(--muted);
+            font-family: 'Space Mono', monospace;
+            font-size: 0.85rem;
+            margin-top: 2.5rem;
+        }
     </style>
 </head>
 
@@ -516,6 +620,20 @@
                 <p class="muted">Wire stripping, soldering, circuit assembly</p>
             </div>
         </div>
+
+        <div class="instructor-login-section">
+            <p class="divider-text">— OR —</p>
+            <button style="font-size: 1.1rem; margin-top: 1rem;" onclick="showInstructorLoginForm()">🎓 Instructor
+                Login</button>
+            <div id="instructor-login-form" class="instructor-login-form">
+                <h3 class="orbitron text-cyan" style="margin-bottom: 1rem;">Instructor Login</h3>
+                <input type="text" id="inst-user" placeholder="Username">
+                <input type="password" id="inst-pass" placeholder="Password">
+                <p id="inst-error" class="text-cyan" style="display:none; margin-bottom: 0.5rem;">Invalid credentials
+                </p>
+                <button class="w-full primary" onclick="doInstructorLogin()">Authenticate</button>
+            </div>
+        </div>
     </div>
 
     <div id="screen-auth" class="screen">
@@ -545,7 +663,8 @@
     <div id="steps-modal">
         <div class="modal-content flex-col">
             <h2 class="orbitron text-cyan border-bottom" id="modal-title">Procedure Steps</h2>
-            <div id="modal-steps" style="margin: 1rem 0; max-height: 400px; overflow-y: auto;" class="flex-col gap-4 mono"></div>
+            <div id="modal-steps" style="margin: 1rem 0; max-height: 400px; overflow-y: auto;"
+                class="flex-col gap-4 mono"></div>
             <button onclick="document.getElementById('steps-modal').style.display='none'">Close</button>
         </div>
     </div>
@@ -571,6 +690,11 @@
                 <div>
                     <h2 class="orbitron text-cyan" id="live-proc-name" style="text-shadow: 0 0 5px black;"></h2>
                     <h4 class="mono" id="live-step-name" style="text-shadow: 0 0 5px black;"></h4>
+                    <div class="rec-indicator" id="rec-indicator" style="display: none; margin-top: 4px;">
+                        <div class="rec-dot"></div>
+                        <span>REC</span>
+                        <span id="rec-timer" style="color: var(--text); margin-left: 4px;">00:00</span>
+                    </div>
                 </div>
                 <div style="text-align: right; text-shadow: 0 0 5px black;">
                     <div class="mono" id="live-timer">00:00</div>
@@ -579,7 +703,10 @@
             </div>
 
             <video id="videoElement" autoplay playsinline style="display:none;"></video>
-            <canvas id="sessionCanvas" width="640" height="480"></canvas>
+            <div class="canvas-wrapper">
+                <canvas id="sessionCanvas" width="640" height="480"></canvas>
+                <canvas id="ghostCanvas" width="640" height="480"></canvas>
+            </div>
 
             <div class="progress-bar-bg">
                 <div id="step-progress-fill" class="progress-bar-fill"></div>
@@ -801,7 +928,8 @@
                 renderPreSession();
                 showScreen('screen-pre-session');
             } else if (authRole === 'instructor' && u === 'instructor' && p === 'pilot2026') {
-                window.location.href = 'instructor.html';
+                sessionStorage.setItem('instructorAuth', 'true');
+                window.location.href = 'instructor.html?auth=1';
             } else {
                 document.getElementById('auth-error').style.display = 'block';
             }
@@ -837,10 +965,26 @@
             document.getElementById('modal-title').innerText = data.procedure;
             const stepsDiv = document.getElementById('modal-steps');
             stepsDiv.innerHTML = data.steps.map((s, i) => `
-                <div style="border: 1px solid var(--border); padding: 1rem;">
-                    <strong>Step ${i + 1}: ${s.name}</strong> <span class="badge badge-${s.severity}">${s.severity.toUpperCase()}</span><br>
-                    Req: Angle ${s.requirements.grip_angle.min}°-${s.requirements.grip_angle.max}°, Zone: ${s.requirements.zone.toUpperCase()}, Dwell: ${s.requirements.dwell_time}s
-                    ${s.ideal_landmarks ? '<div style="font-size:0.7rem; color:var(--success); margin-top:5px;">✓ Instructor-recorded ideal pose available</div>' : ''}
+                <div style="border: 1px solid var(--border); padding: 1rem; border-radius: 6px; background: var(--surface2);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.5rem;">
+                        <strong style="color: var(--accent);">Step ${i + 1}: ${s.name}</strong>
+                        <span class="badge badge-${s.severity}">${s.severity.toUpperCase()}</span>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; font-size: 0.8rem;">
+                        <div style="background: var(--surface); padding: 0.4rem; border-radius: 4px; text-align: center;">
+                            <div class="muted" style="font-size: 0.65rem;">ANGLE</div>
+                            <div class="text-cyan">${s.requirements.grip_angle.min}°–${s.requirements.grip_angle.max}°</div>
+                        </div>
+                        <div style="background: var(--surface); padding: 0.4rem; border-radius: 4px; text-align: center;">
+                            <div class="muted" style="font-size: 0.65rem;">ZONE</div>
+                            <div class="text-cyan">${s.requirements.zone.toUpperCase()}</div>
+                        </div>
+                        <div style="background: var(--surface); padding: 0.4rem; border-radius: 4px; text-align: center;">
+                            <div class="muted" style="font-size: 0.65rem;">HOLD</div>
+                            <div class="text-cyan">${s.requirements.dwell_time}s</div>
+                        </div>
+                    </div>
+                    ${s.ideal_landmarks ? '<div style="font-size:0.7rem; color:var(--success); margin-top:8px;">✓ Instructor-recorded ideal pose available</div>' : '<div style="font-size:0.7rem; color:var(--muted); margin-top:8px;">◯ Using generated ideal pose</div>'}
                 </div>
             `).join('');
             document.getElementById('steps-modal').style.display = 'flex';
@@ -911,6 +1055,9 @@
             updateStepUI();
             showScreen('screen-session');
 
+            // Activate automatic recording indicator
+            document.getElementById('rec-indicator').style.display = 'flex';
+
             if (!handsConfigured) {
                 handsTracker = new Hands({ locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
                 handsTracker.setOptions({
@@ -937,6 +1084,10 @@
                         <strong>${i + 1}. ${s.name}</strong>
                         <span class="badge badge-${s.severity}">${s.severity.toUpperCase()}</span>
                     </div>
+                    <div class="step-detail">
+                        Angle: ${s.requirements.grip_angle.min}°–${s.requirements.grip_angle.max}° | Zone: ${s.requirements.zone.toUpperCase()} | Hold: ${s.requirements.dwell_time}s
+                    </div>
+                    <div class="step-progress-mini"><div class="step-progress-mini-fill" id="step-mini-${i}"></div></div>
                 </div>
             `).join('');
         }
@@ -965,6 +1116,7 @@
                 const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
                 const s = String(elapsed % 60).padStart(2, '0');
                 document.getElementById('live-timer').innerText = `${m}:${s}`;
+                document.getElementById('rec-timer').innerText = `${m}:${s}`;
             }
             requestAnimationFrame(sessionLoop);
         }
@@ -1132,6 +1284,10 @@
                 dwellAccumulated = (Date.now() - dwellStartTime) / 1000;
                 correctFrames++;
 
+                // Update step mini progress bar
+                const miniEl = document.getElementById(`step-mini-${currentStepIndex}`);
+                if (miniEl) miniEl.style.width = `${Math.min(100, (dwellAccumulated / step.requirements.dwell_time) * 100)}%`;
+
                 if (dwellAccumulated >= step.requirements.dwell_time) {
                     console.log(`Step ${currentStepIndex} Complete`);
                     completeStep(currentStepIndex);
@@ -1139,6 +1295,10 @@
             } else {
                 dwellStartTime = null;
                 dwellAccumulated = 0;
+
+                // Reset step mini progress
+                const miniReset = document.getElementById(`step-mini-${currentStepIndex}`);
+                if (miniReset) miniReset.style.width = '0%';
 
                 const severity = step.severity;
                 const alertMsg = angleOk ? step.alert_minor : (severity === 'critical' ? step.alert_critical : step.alert_minor);
@@ -1207,79 +1367,340 @@
             const spread = (avgAngle / 180) * 0.08; // how far fingers spread based on angle
 
             return [
-                {x: wX, y: wY},                               // 0 wrist
-                {x: wX - 0.06, y: wY - 0.04},                 // 1 thumb CMC
-                {x: wX - 0.09, y: wY - 0.08},                 // 2 thumb MCP
-                {x: wX - 0.11, y: wY - 0.12},                 // 3 thumb IP
-                {x: wX - 0.12, y: wY - 0.16},                 // 4 thumb tip
-                {x: wX - 0.04, y: wY - 0.14},                 // 5 index MCP
-                {x: wX - 0.04 - spread, y: wY - 0.20},        // 6 index PIP
-                {x: wX - 0.04 - spread, y: wY - 0.25},        // 7 index DIP
-                {x: wX - 0.04 - spread*0.8, y: wY - 0.29},    // 8 index tip
-                {x: wX - 0.01, y: wY - 0.15},                 // 9 middle MCP
-                {x: wX - 0.01, y: wY - 0.22},                 // 10 middle PIP
-                {x: wX - 0.01, y: wY - 0.27},                 // 11 middle DIP
-                {x: wX - 0.01, y: wY - 0.31},                 // 12 middle tip
-                {x: wX + 0.02, y: wY - 0.14},                 // 13 ring MCP
-                {x: wX + 0.02 + spread*0.5, y: wY - 0.20},    // 14 ring PIP
-                {x: wX + 0.02 + spread*0.5, y: wY - 0.25},    // 15 ring DIP
-                {x: wX + 0.02 + spread*0.4, y: wY - 0.28},    // 16 ring tip
-                {x: wX + 0.05, y: wY - 0.12},                 // 17 pinky MCP
-                {x: wX + 0.05 + spread*0.3, y: wY - 0.17},    // 18 pinky PIP
-                {x: wX + 0.05 + spread*0.3, y: wY - 0.21},    // 19 pinky DIP
-                {x: wX + 0.05 + spread*0.2, y: wY - 0.24},    // 20 pinky tip
+                { x: wX, y: wY },                               // 0 wrist
+                { x: wX - 0.06, y: wY - 0.04 },                 // 1 thumb CMC
+                { x: wX - 0.09, y: wY - 0.08 },                 // 2 thumb MCP
+                { x: wX - 0.11, y: wY - 0.12 },                 // 3 thumb IP
+                { x: wX - 0.12, y: wY - 0.16 },                 // 4 thumb tip
+                { x: wX - 0.04, y: wY - 0.14 },                 // 5 index MCP
+                { x: wX - 0.04 - spread, y: wY - 0.20 },        // 6 index PIP
+                { x: wX - 0.04 - spread, y: wY - 0.25 },        // 7 index DIP
+                { x: wX - 0.04 - spread * 0.8, y: wY - 0.29 },    // 8 index tip
+                { x: wX - 0.01, y: wY - 0.15 },                 // 9 middle MCP
+                { x: wX - 0.01, y: wY - 0.22 },                 // 10 middle PIP
+                { x: wX - 0.01, y: wY - 0.27 },                 // 11 middle DIP
+                { x: wX - 0.01, y: wY - 0.31 },                 // 12 middle tip
+                { x: wX + 0.02, y: wY - 0.14 },                 // 13 ring MCP
+                { x: wX + 0.02 + spread * 0.5, y: wY - 0.20 },    // 14 ring PIP
+                { x: wX + 0.02 + spread * 0.5, y: wY - 0.25 },    // 15 ring DIP
+                { x: wX + 0.02 + spread * 0.4, y: wY - 0.28 },    // 16 ring tip
+                { x: wX + 0.05, y: wY - 0.12 },                 // 17 pinky MCP
+                { x: wX + 0.05 + spread * 0.3, y: wY - 0.17 },    // 18 pinky PIP
+                { x: wX + 0.05 + spread * 0.3, y: wY - 0.21 },    // 19 pinky DIP
+                { x: wX + 0.05 + spread * 0.2, y: wY - 0.24 },    // 20 pinky tip
             ];
         }
 
         // MediaPipe standard hand connections (landmark index pairs)
         const GHOST_CONNECTIONS = [
-            [0,1],[1,2],[2,3],[3,4],       // thumb
-            [0,5],[5,6],[6,7],[7,8],       // index
-            [0,9],[9,10],[10,11],[11,12],  // middle
-            [0,13],[13,14],[14,15],[15,16],// ring
-            [0,17],[17,18],[18,19],[19,20],// pinky
-            [5,9],[9,13],[13,17]           // palm
+            [0, 1], [1, 2], [2, 3], [3, 4],       // thumb
+            [0, 5], [5, 6], [6, 7], [7, 8],       // index
+            [0, 9], [9, 10], [10, 11], [11, 12],  // middle
+            [0, 13], [13, 14], [14, 15], [15, 16],// ring
+            [0, 17], [17, 18], [18, 19], [19, 20],// pinky
+            [5, 9], [9, 13], [13, 17]           // palm
         ];
 
-        function drawIdealGhost(currentLandmarks, step, isCorrect) {
+        // Align ideal landmarks to overlap the student's actual hand
+        function alignIdealToStudent(idealLm, studentLm) {
+            const iWrist = idealLm[0];
+            const iMid = idealLm[9];
+            const sWrist = studentLm[0];
+            const sMid = studentLm[9];
+
+            const iDist = Math.sqrt(Math.pow(iMid.x - iWrist.x, 2) + Math.pow(iMid.y - iWrist.y, 2));
+            const sDist = Math.sqrt(Math.pow(sMid.x - sWrist.x, 2) + Math.pow(sMid.y - sWrist.y, 2));
+            const scale = sDist / (iDist || 0.001);
+
+            const iAngle = Math.atan2(iMid.y - iWrist.y, iMid.x - iWrist.x);
+            const sAngle = Math.atan2(sMid.y - sWrist.y, sMid.x - sWrist.x);
+            const rotation = sAngle - iAngle;
+
+            const cosR = Math.cos(rotation);
+            const sinR = Math.sin(rotation);
+
+            return idealLm.map(p => {
+                const dx = p.x - iWrist.x;
+                const dy = p.y - iWrist.y;
+                const sx = dx * scale;
+                const sy = dy * scale;
+                const rx = sx * cosR - sy * sinR;
+                const ry = sx * sinR + sy * cosR;
+                return { x: sWrist.x + rx, y: sWrist.y + ry };
+            });
+        }
+
+        // ==========================================
+        // 3D GHOST HAND OVERLAY (hand.glb) + 2D FALLBACK
+        // ==========================================
+        let ghostScene, ghostCamera, ghostRenderer;
+        let ghostHandModel = null;
+        let ghostModelLoaded = false;
+        let ghostInitialized = false;
+        let ghostMaterials = [];
+        let ghostGroup = null; // wrapper group for clean transforms
+        let ghostModelNativeSize = 1;
+
+        // Smoothing state
+        let ghostPrevPos = null;
+        let ghostPrevScale = null;
+        let ghostPrevAngle = null;
+        const GHOST_LERP = 0.3;
+
+        function lerpVal(prev, target, t) {
+            return prev === null ? target : prev + (target - prev) * t;
+        }
+
+        function initGhostHand3D() {
+            if (ghostInitialized) return;
+            ghostInitialized = true;
+
+            const canvas = document.getElementById('ghostCanvas');
+
+            ghostScene = new THREE.Scene();
+
+            // Orthographic camera: x 0→1, y 0→1 (bottom-left to top-right)
+            ghostCamera = new THREE.OrthographicCamera(0, 1, 1, 0, -100, 100);
+            ghostCamera.position.set(0, 0, 50);
+            ghostCamera.lookAt(0, 0, 0);
+
+            ghostRenderer = new THREE.WebGLRenderer({
+                canvas: canvas,
+                alpha: true,
+                antialias: true
+            });
+            ghostRenderer.setClearColor(0x000000, 0);
+            ghostRenderer.setSize(canvas.width, canvas.height);
+            ghostRenderer.setPixelRatio(1);
+
+            // Strong even lighting for clear ghost visibility
+            ghostScene.add(new THREE.AmbientLight(0xffffff, 1.2));
+            const keyLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            keyLight.position.set(0.5, 1, 3);
+            ghostScene.add(keyLight);
+            const fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            fillLight.position.set(-1, -0.5, 2);
+            ghostScene.add(fillLight);
+
+            // Load the hand.glb model
+            const loader = new THREE.GLTFLoader();
+            loader.load(
+                'hand.glb',
+                function (gltf) {
+                    ghostHandModel = gltf.scene;
+
+                    // Compute bounding box to normalize the model
+                    const box = new THREE.Box3().setFromObject(ghostHandModel);
+                    const size = box.getSize(new THREE.Vector3());
+                    const center = box.getCenter(new THREE.Vector3());
+                    ghostModelNativeSize = Math.max(size.x, size.y, size.z) || 1;
+
+                    // Center the model at origin
+                    ghostHandModel.position.set(-center.x, -center.y, -center.z);
+
+                    // Normalize to unit size (fits in ~1x1x1 box)
+                    const normScale = 1.0 / ghostModelNativeSize;
+                    ghostHandModel.scale.set(normScale, normScale, normScale);
+
+                    // Apply ghost material: 70% opacity, initial green color
+                    ghostHandModel.traverse(function (child) {
+                        if (child.isMesh) {
+                            child.material = child.material.clone();
+                            child.material.transparent = true;
+                            child.material.opacity = 0.7;
+                            child.material.side = THREE.DoubleSide;
+                            child.material.depthWrite = false;
+                            child.material.color = new THREE.Color(0x00ff9d);
+                            if (child.material.emissive) {
+                                child.material.emissive = new THREE.Color(0x00ff9d);
+                                child.material.emissiveIntensity = 0.2;
+                            }
+                            ghostMaterials.push(child.material);
+                        }
+                    });
+
+                    // Wrap in a group for clean position/scale/rotation each frame
+                    ghostGroup = new THREE.Group();
+                    ghostGroup.add(ghostHandModel);
+                    ghostGroup.visible = false;
+                    ghostScene.add(ghostGroup);
+
+                    ghostModelLoaded = true;
+                    console.log('[GhostHand] 3D model loaded. Native size:', ghostModelNativeSize.toFixed(3), 'Center:', center);
+                },
+                function (xhr) {
+                    const pct = xhr.total ? Math.round(xhr.loaded / xhr.total * 100) : '?';
+                    console.log('[GhostHand] Loading hand.glb: ' + pct + '%');
+                },
+                function (error) {
+                    console.error('[GhostHand] Failed to load hand.glb:', error);
+                    console.log('[GhostHand] Will use 2D skeleton fallback.');
+                }
+            );
+        }
+
+        function updateGhostHand3D(idealLandmarks, isCorrect) {
+            if (!ghostInitialized) initGhostHand3D();
+            if (!ghostModelLoaded || !ghostGroup) {
+                // Model not ready — clear the WebGL canvas
+                if (ghostRenderer) {
+                    ghostRenderer.clear();
+                }
+                return false; // signal that 3D didn't render
+            }
+
+            // --- Color: GREEN (correct) or RED (incorrect) ---
+            const targetColor = isCorrect ? new THREE.Color(0x00ff9d) : new THREE.Color(0xff3366);
+            const emissiveStr = isCorrect ? 0.15 : 0.4;
+
+            ghostMaterials.forEach(mat => {
+                mat.color.lerp(targetColor, 0.2);
+                if (mat.emissive) mat.emissive.lerp(targetColor, 0.2);
+                if (mat.emissiveIntensity !== undefined) {
+                    mat.emissiveIntensity += (emissiveStr - mat.emissiveIntensity) * 0.2;
+                }
+                mat.opacity = 0.7; // 70% opacity always
+            });
+
+            // --- Position from MediaPipe landmarks ---
+            const wrist = idealLandmarks[0];
+            const midMCP = idealLandmarks[9];
+
+            // Convert to camera space (flip Y)
+            const wx = wrist.x, wy = 1.0 - wrist.y;
+            const mx = midMCP.x, my = 1.0 - midMCP.y;
+
+            // Palm center
+            const rawCX = (wx + mx) * 0.5;
+            const rawCY = (wy + my) * 0.5;
+            const cx = lerpVal(ghostPrevPos ? ghostPrevPos.x : null, rawCX, GHOST_LERP);
+            const cy = lerpVal(ghostPrevPos ? ghostPrevPos.y : null, rawCY, GHOST_LERP);
+            ghostPrevPos = { x: cx, y: cy };
+
+            // Hand span for scale
+            const handSpan = Math.sqrt((mx - wx) ** 2 + (my - wy) ** 2);
+            const rawScale = handSpan * 2.5;
+            const sScale = lerpVal(ghostPrevScale, rawScale, GHOST_LERP);
+            ghostPrevScale = sScale;
+
+            // Rotation angle
+            const rawAngle = Math.atan2(mx - wx, my - wy);
+            const sAngle = lerpVal(ghostPrevAngle, rawAngle, GHOST_LERP);
+            ghostPrevAngle = sAngle;
+
+            // Apply transforms to wrapper group
+            ghostGroup.position.set(cx, cy, 0);
+            ghostGroup.scale.set(sScale, sScale, sScale);
+            ghostGroup.rotation.set(0, 0, -sAngle);
+
+            ghostGroup.visible = true;
+            ghostRenderer.render(ghostScene, ghostCamera);
+            return true; // 3D rendered successfully
+        }
+
+        function hideGhostHand3D() {
+            if (!ghostInitialized) return;
+            if (ghostGroup) ghostGroup.visible = false;
+            if (ghostRenderer) ghostRenderer.render(ghostScene, ghostCamera);
+            ghostPrevPos = null;
+            ghostPrevScale = null;
+            ghostPrevAngle = null;
+        }
+
+        // ----- 2D FALLBACK: Ghost skeleton drawn on sessionCanvas -----
+        function draw2DGhostHand(idealLm, isCorrect) {
             const W = sessionCanvas.width;
             const H = sessionCanvas.height;
+            const lineColor = isCorrect
+                ? 'rgba(0, 255, 157, 0.5)'
+                : 'rgba(255, 51, 102, 0.5)';
+            const dotColor = isCorrect
+                ? 'rgba(0, 255, 157, 0.7)'
+                : 'rgba(255, 51, 102, 0.7)';
+            const glowColor = isCorrect
+                ? 'rgba(0, 255, 157, 0.25)'
+                : 'rgba(255, 51, 102, 0.25)';
 
-            // Use instructor-recorded landmarks if available, otherwise generate
-            const idealLm = step.ideal_landmarks || generateIdealLandmarks(step);
+            ctx.save();
 
-            const ghostColor = isCorrect ? 'rgba(0, 229, 255, 0.25)' : 'rgba(0, 229, 255, 0.45)';
-            const nodeColor = isCorrect ? 'rgba(0, 229, 255, 0.35)' : 'rgba(0, 229, 255, 0.55)';
+            // Glow effect
+            ctx.shadowColor = glowColor;
+            ctx.shadowBlur = 12;
 
-            // Draw connections
-            ctx.strokeStyle = ghostColor;
+            // Draw skeleton connections (dashed)
+            ctx.strokeStyle = lineColor;
             ctx.lineWidth = 3;
-            ctx.setLineDash([6, 4]); // dashed line for ghost effect
+            ctx.setLineDash([6, 4]);
             GHOST_CONNECTIONS.forEach(([a, b]) => {
                 ctx.beginPath();
                 ctx.moveTo(idealLm[a].x * W, idealLm[a].y * H);
                 ctx.lineTo(idealLm[b].x * W, idealLm[b].y * H);
                 ctx.stroke();
             });
-            ctx.setLineDash([]); // reset
 
-            // Draw landmark nodes
-            ctx.fillStyle = nodeColor;
+            // Draw landmark dots (solid)
+            ctx.setLineDash([]);
+            ctx.shadowBlur = 6;
+            ctx.fillStyle = dotColor;
             idealLm.forEach(p => {
                 ctx.beginPath();
-                ctx.arc(p.x * W, p.y * H, 4, 0, 2 * Math.PI);
+                ctx.arc(p.x * W, p.y * H, 4, 0, Math.PI * 2);
                 ctx.fill();
             });
 
-            // Draw "IDEAL" label near wrist
-            ctx.font = '10px Orbitron';
-            ctx.fillStyle = 'rgba(0, 229, 255, 0.6)';
-            ctx.fillText('IDEAL', idealLm[0].x * W - 15, idealLm[0].y * H + 15);
+            // Draw palm fill (semi-transparent polygon)
+            const palmIndices = [0, 5, 9, 13, 17];
+            ctx.fillStyle = isCorrect
+                ? 'rgba(0, 255, 157, 0.08)'
+                : 'rgba(255, 51, 102, 0.08)';
+            ctx.shadowBlur = 0;
+            ctx.beginPath();
+            ctx.moveTo(idealLm[palmIndices[0]].x * W, idealLm[palmIndices[0]].y * H);
+            for (let i = 1; i < palmIndices.length; i++) {
+                ctx.lineTo(idealLm[palmIndices[i]].x * W, idealLm[palmIndices[i]].y * H);
+            }
+            ctx.closePath();
+            ctx.fill();
+
+            // Label
+            ctx.font = '11px Orbitron';
+            ctx.fillStyle = isCorrect ? 'rgba(0, 255, 157, 0.8)' : 'rgba(255, 51, 102, 0.8)';
+            ctx.shadowBlur = 0;
+            const labelX = idealLm[0].x * W;
+            const labelY = idealLm[0].y * H + 20;
+            ctx.fillText(isCorrect ? '✓ CORRECT POSITION' : '✗ ADJUST HAND', labelX - 40, labelY);
+
+            ctx.restore();
         }
+
+        function drawIdealGhost(currentLandmarks, step, isCorrect) {
+            // Use instructor-recorded landmarks if available, otherwise generate
+            const rawIdealLm = step.ideal_landmarks || generateIdealLandmarks(step);
+
+            // Align ideal hand to overlap the student's actual hand
+            const idealLm = alignIdealToStudent(rawIdealLm, currentLandmarks);
+
+            // Try 3D ghost hand first, fall back to 2D skeleton
+            if (!ghostInitialized) initGhostHand3D();
+
+            let rendered3D = false;
+            if (ghostModelLoaded) {
+                rendered3D = updateGhostHand3D(idealLm, isCorrect);
+            }
+
+            // Always draw the 2D skeleton overlay on the session canvas too
+            // (provides immediate visual guidance regardless of 3D state)
+            draw2DGhostHand(idealLm, isCorrect);
+        }
+
 
         function completeStep(index) {
             completedSteps.push(index);
             if (index > 0 && !completedSteps.includes(index - 1)) skippedSteps.push(index - 1);
+
+            // Mark step mini progress as done
+            const miniDone = document.getElementById(`step-mini-${index}`);
+            if (miniDone) { miniDone.style.width = "100%"; miniDone.style.background = "var(--success)"; }
 
             currentStepIndex++;
             dwellStartTime = null;
@@ -1295,6 +1716,12 @@
         function completeSession() {
             sessionActive = false;
             camera.stop();
+
+            // Hide recording indicator
+            document.getElementById('rec-indicator').style.display = 'none';
+
+            // Hide 3D ghost hand
+            hideGhostHand3D();
 
             const sessionData = {
                 procedure: currentProcedure.procedure,
@@ -1454,18 +1881,47 @@
             // Draw Ideal hand skeleton using recorded or generated landmarks
             const stepForFrame = currentProcedure ? currentProcedure.steps.find(s => s.id === frame.stepId) : null;
             if (stepForFrame) {
-                const idealLm = stepForFrame.ideal_landmarks || generateIdealLandmarks(stepForFrame);
+                const rawIdealLm = stepForFrame.ideal_landmarks || generateIdealLandmarks(stepForFrame);
+
+                // --- Aligned overlay on STUDENT canvas ---
+                const alignedLm = alignIdealToStudent(rawIdealLm, lm);
+                const wS = cS.width, hS = cS.height;
+                ctxS.save();
+                ctxS.shadowColor = 'rgba(0, 229, 255, 0.3)';
+                ctxS.shadowBlur = 10;
+                ctxS.strokeStyle = 'rgba(0, 229, 255, 0.45)';
+                ctxS.lineWidth = 2;
+                ctxS.setLineDash([5, 3]);
+                GHOST_CONNECTIONS.forEach(([a, b]) => {
+                    ctxS.beginPath();
+                    ctxS.moveTo(alignedLm[a].x * wS, alignedLm[a].y * hS);
+                    ctxS.lineTo(alignedLm[b].x * wS, alignedLm[b].y * hS);
+                    ctxS.stroke();
+                });
+                ctxS.setLineDash([]);
+                ctxS.fillStyle = 'rgba(0, 229, 255, 0.55)';
+                alignedLm.forEach(p => {
+                    ctxS.beginPath();
+                    ctxS.arc(p.x * wS, p.y * hS, 3, 0, 2 * Math.PI);
+                    ctxS.fill();
+                });
+                ctxS.font = '10px Orbitron';
+                ctxS.fillStyle = 'rgba(0, 229, 255, 0.6)';
+                ctxS.fillText('IDEAL OVERLAY', 10, 20);
+                ctxS.restore();
+
+                // --- Separate ideal panel (unaligned reference) ---
                 const W = cI.width, H = cI.height;
                 ctxI.strokeStyle = 'rgba(0, 255, 157, 0.7)';
                 ctxI.lineWidth = 2;
                 GHOST_CONNECTIONS.forEach(([a, b]) => {
                     ctxI.beginPath();
-                    ctxI.moveTo(idealLm[a].x * W, idealLm[a].y * H);
-                    ctxI.lineTo(idealLm[b].x * W, idealLm[b].y * H);
+                    ctxI.moveTo(rawIdealLm[a].x * W, rawIdealLm[a].y * H);
+                    ctxI.lineTo(rawIdealLm[b].x * W, rawIdealLm[b].y * H);
                     ctxI.stroke();
                 });
                 ctxI.fillStyle = 'rgba(0, 255, 157, 0.8)';
-                idealLm.forEach(p => {
+                rawIdealLm.forEach(p => {
                     ctxI.beginPath();
                     ctxI.arc(p.x * W, p.y * H, 3, 0, 2 * Math.PI);
                     ctxI.fill();
@@ -1551,6 +2007,23 @@
             }
         }
         // Three.js / GLB removed — ghost hand overlay renders directly on Canvas2D
+
+        // Instructor login from landing page (skip domain selection)
+        function showInstructorLoginForm() {
+            const form = document.getElementById('instructor-login-form');
+            form.classList.toggle('visible');
+        }
+
+        function doInstructorLogin() {
+            const u = document.getElementById('inst-user').value;
+            const p = document.getElementById('inst-pass').value;
+            if (u === 'instructor' && p === 'pilot2026') {
+                sessionStorage.setItem('instructorAuth', 'true');
+                window.location.href = 'instructor.html?auth=1';
+            } else {
+                document.getElementById('inst-error').style.display = 'block';
+            }
+        }
 
     </script>
 </body>

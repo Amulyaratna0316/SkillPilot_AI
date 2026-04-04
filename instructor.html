@@ -1,15 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SkillPilot_AI - Instructor Dashboard</title>
-    
+    <title>SkillPilot AI - Instructor Dashboard</title>
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@400;600&family=Space+Mono&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@400;600&family=Space+Mono&display=swap"
+        rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    
+
     <!-- MediaPipe for ideal hand capture -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
@@ -30,15 +33,19 @@
             --muted: #4a6080;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
 
         body {
             background-color: var(--bg);
             color: var(--text);
             font-family: 'Rajdhani', sans-serif;
-            background-image: 
-                linear-gradient(to right, rgba(255,255,255,0.02) 1px, transparent 1px),
-                linear-gradient(to bottom, rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-image:
+                linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
             background-size: 40px 40px;
             overflow-x: hidden;
             height: 100vh;
@@ -46,13 +53,38 @@
             flex-direction: column;
         }
 
-        h1, h2, h3, h4, .orbitron { font-family: 'Orbitron', sans-serif; }
-        .mono { font-family: 'Space Mono', monospace; }
-        .text-cyan { color: var(--accent); }
-        .flex { display: flex; }
-        .flex-col { display: flex; flex-direction: column; }
-        .text-center { text-align: center; }
-        .w-full { width: 100%; }
+        h1,
+        h2,
+        h3,
+        h4,
+        .orbitron {
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        .mono {
+            font-family: 'Space Mono', monospace;
+        }
+
+        .text-cyan {
+            color: var(--accent);
+        }
+
+        .flex {
+            display: flex;
+        }
+
+        .flex-col {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .w-full {
+            width: 100%;
+        }
 
         button {
             background: var(--surface2);
@@ -65,31 +97,38 @@
             border-radius: 4px;
             font-size: 1rem;
         }
+
         button:hover {
             border-color: var(--accent);
             box-shadow: 0 0 10px rgba(0, 229, 255, 0.2);
         }
+
         button.primary {
             background: rgba(0, 229, 255, 0.1);
             border-color: var(--accent);
             color: var(--accent);
         }
+
         button.danger {
             background: rgba(255, 51, 102, 0.1);
             border-color: var(--danger);
             color: var(--danger);
         }
+
         button.success {
             background: rgba(0, 255, 157, 0.1);
             border-color: var(--success);
             color: var(--success);
         }
+
         button:disabled {
             opacity: 0.4;
             cursor: not-allowed;
         }
 
-        input, select, textarea {
+        input,
+        select,
+        textarea {
             background: var(--surface);
             border: 1px solid var(--border);
             color: var(--text);
@@ -98,12 +137,22 @@
             border-radius: 4px;
             width: 100%;
         }
-        input:focus, select:focus, textarea:focus {
+
+        input:focus,
+        select:focus,
+        textarea:focus {
             outline: none;
             border-color: var(--accent);
         }
 
-        .screen { display: none; flex: 1; flex-direction: column; align-items: center; padding: 2rem; overflow-y: auto;}
+        .screen {
+            display: none;
+            flex: 1;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem;
+            overflow-y: auto;
+        }
 
         nav {
             display: flex;
@@ -114,12 +163,24 @@
             border-bottom: 1px solid var(--border);
             display: none;
         }
-        .nav-links { display: flex; gap: 1rem; }
-        .nav-tab {
-            padding: 0.5rem 1rem; cursor: pointer; font-family: 'Orbitron', sans-serif;
-            border-bottom: 2px solid transparent; transition: 0.3s;
+
+        .nav-links {
+            display: flex;
+            gap: 1rem;
         }
-        .nav-tab.active { border-bottom: 2px solid var(--accent); color: var(--accent); }
+
+        .nav-tab {
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            font-family: 'Orbitron', sans-serif;
+            border-bottom: 2px solid transparent;
+            transition: 0.3s;
+        }
+
+        .nav-tab.active {
+            border-bottom: 2px solid var(--accent);
+            color: var(--accent);
+        }
 
         #auth-form {
             background: var(--surface);
@@ -138,30 +199,99 @@
             margin-bottom: 1rem;
             position: relative;
         }
-        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
-        .col-span-2 { grid-column: span 2; }
-        
-        pre { background: #000; border: 1px solid var(--border); padding: 1rem; overflow-x: auto; font-size: 0.85rem; white-space: pre-wrap; word-break: break-all; }
 
-        .report-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem; width: 100%; max-width: 1200px; }
-        .student-card { background: var(--surface); border: 1px solid var(--border); padding: 1.5rem; border-radius: 8px; }
-        .student-card:hover { border-color: var(--accent); }
-        .accuracy-bar { width: 100%; height: 6px; background: var(--surface2); margin: 1rem 0; }
-        .accuracy-fill { height: 100%; background: var(--accent); }
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .col-span-2 {
+            grid-column: span 2;
+        }
+
+        pre {
+            background: #000;
+            border: 1px solid var(--border);
+            padding: 1rem;
+            overflow-x: auto;
+            font-size: 0.85rem;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .report-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        .student-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            padding: 1.5rem;
+            border-radius: 8px;
+        }
+
+        .student-card:hover {
+            border-color: var(--accent);
+        }
+
+        .accuracy-bar {
+            width: 100%;
+            height: 6px;
+            background: var(--surface2);
+            margin: 1rem 0;
+        }
+
+        .accuracy-fill {
+            height: 100%;
+            background: var(--accent);
+        }
 
         .modal {
-            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8);
-            justify-content: center; align-items: center; z-index: 100;
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
         }
-        .modal-content { background: var(--surface); border: 1px solid var(--accent); padding: 2rem; width: 600px; max-height: 90vh; overflow-y: auto;}
 
-        .settings-box { position: relative; display: inline-block; }
-        .settings-dropdown {
-            display: none; position: absolute; right: 0; top: 100%; background: var(--surface);
-            border: 1px solid var(--border); padding: 1rem; width: 300px; z-index: 50;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+        .modal-content {
+            background: var(--surface);
+            border: 1px solid var(--accent);
+            padding: 2rem;
+            width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
         }
-        .settings-box:hover .settings-dropdown { display: block; }
+
+        .settings-box {
+            position: relative;
+            display: inline-block;
+        }
+
+        .settings-dropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            padding: 1rem;
+            width: 300px;
+            z-index: 50;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5);
+        }
+
+        .settings-box:hover .settings-dropdown {
+            display: block;
+        }
 
         /* Capture Section */
         .capture-zone {
@@ -171,6 +301,7 @@
             width: 100%;
             margin-top: 1rem;
         }
+
         .capture-video-box {
             position: relative;
             background: #000;
@@ -178,20 +309,28 @@
             border-radius: 8px;
             overflow: hidden;
         }
+
         .capture-video-box canvas {
             width: 100%;
             display: block;
         }
+
         .capture-status {
             position: absolute;
-            top: 8px; left: 8px;
-            background: rgba(0,0,0,0.7);
+            top: 8px;
+            left: 8px;
+            right: 8px;
+            background: rgba(0, 0, 0, 0.7);
             color: var(--accent);
-            padding: 3px 8px;
-            font-size: 0.7rem;
+            padding: 6px 10px;
+            font-size: 0.75rem;
             font-family: 'Space Mono', monospace;
             pointer-events: none;
+            border-radius: 4px;
+            transition: background 0.3s, color 0.3s;
+            text-align: center;
         }
+
         .ideal-preview-box {
             background: var(--surface2);
             border: 1px solid var(--border);
@@ -201,11 +340,13 @@
             flex-direction: column;
             gap: 0.5rem;
         }
+
         .ideal-preview-box canvas {
             width: 100%;
             background: #000;
             border: 1px solid var(--border);
         }
+
         .step-capture-badge {
             display: inline-block;
             padding: 2px 8px;
@@ -213,17 +354,26 @@
             font-size: 0.7rem;
             font-weight: bold;
         }
-        .badge-captured { background: var(--success); color: #000; }
-        .badge-pending { background: var(--muted); color: #fff; }
+
+        .badge-captured {
+            background: var(--success);
+            color: #000;
+        }
+
+        .badge-pending {
+            background: var(--muted);
+            color: #fff;
+        }
     </style>
 </head>
+
 <body>
 
     <!-- Auth Screen -->
     <div id="screen-auth" class="screen" style="display: flex;">
-        <h1 class="orbitron text-cyan" style="font-size: 3rem;">SkillPilot_AI</h1>
+        <h1 class="orbitron text-cyan" style="font-size: 3rem;">SkillPilot AI</h1>
         <h2 class="orbitron" style="margin-top: 1rem;">Instructor Portal</h2>
-        
+
         <div id="auth-form" class="flex-col" style="gap: 1rem;">
             <input type="text" id="auth-user" placeholder="Username (instructor)">
             <input type="password" id="auth-pass" placeholder="Password (pilot2026)">
@@ -235,7 +385,7 @@
 
     <!-- Navigation -->
     <nav id="nav-bar">
-        <h2 class="orbitron text-cyan">SkillPilot_AI</h2>
+        <h2 class="orbitron text-cyan">SkillPilot AI</h2>
         <div class="nav-links">
             <div class="nav-tab active" onclick="switchTab('tab-builder')">Procedure Builder</div>
             <div class="nav-tab" onclick="switchTab('tab-video')">AI Video Pipeline</div>
@@ -257,22 +407,14 @@
     <!-- Tab 1: Builder -->
     <div id="tab-builder" class="screen main-tab" style="max-width: 1100px; margin: 0 auto; display: none;">
         <h2 class="orbitron w-full" style="margin-bottom: 2rem;">Procedure Builder</h2>
-        
+
         <div class="cfg-card w-full">
             <div class="form-grid">
                 <div class="col-span-2">
                     <label class="mono muted">Procedure Name</label>
                     <input type="text" id="builder-proc-name" placeholder="E.g. Surgical Needle Grip">
                 </div>
-                <div class="col-span-2">
-                    <label class="mono muted">Domain</label>
-                    <select id="builder-domain">
-                        <option value="nursing">Nursing</option>
-                        <option value="dentistry">Dentistry</option>
-                        <option value="culinary">Culinary Arts</option>
-                        <option value="electrical">Electrical</option>
-                    </select>
-                </div>
+
             </div>
         </div>
 
@@ -286,8 +428,9 @@
         <!-- ========== IDEAL HAND CAPTURE SECTION ========== -->
         <div class="cfg-card w-full" style="border-color: var(--accent); margin-top: 2rem;">
             <h3 class="orbitron text-cyan" style="margin-bottom: 0.5rem;">🎯 Record Ideal Hand Positions</h3>
-            <p class="mono muted" style="font-size: 0.85rem;">Use your webcam to capture the ideal hand pose for each step. Students will see this as a transparent overlay guide.</p>
-            
+            <p class="mono muted" style="font-size: 0.85rem;">Use your webcam to capture the ideal hand pose for each
+                step. Students will see this as a transparent overlay guide.</p>
+
             <div class="capture-zone">
                 <div class="capture-video-box">
                     <video id="captureVideo" autoplay playsinline style="display:none;"></video>
@@ -300,18 +443,27 @@
                     <div class="mono muted" style="font-size: 0.75rem;">
                         Capturing for: <span id="capture-target-step" class="text-cyan">—</span>
                     </div>
-                    <div id="capture-step-badges" class="flex" style="flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem;"></div>
+                    <div id="capture-step-badges" class="flex"
+                        style="flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem;"></div>
                 </div>
             </div>
 
-            <div class="flex" style="gap: 1rem; margin-top: 1rem; flex-wrap: wrap;">
-                <button class="primary" id="btn-start-capture" onclick="startCapture()">📷 Start Camera</button>
-                <select id="capture-step-select" style="max-width: 250px;">
-                    <option value="">Select step to capture...</option>
+            <div class="flex" style="gap: 1rem; margin-top: 1rem; flex-wrap: wrap; align-items: center;">
+                <label class="mono text-cyan" style="font-size: 0.85rem;">Select Step:</label>
+                <select id="capture-step-select" style="max-width: 280px;" onchange="onStepSelected()">
+                    <option value="">— Select step to record —</option>
+                    <option value="0">Step 1: Tool Preparation</option>
+                    <option value="1">Step 2: Hand Positioning</option>
+                    <option value="2">Step 3: Grip Adjustment</option>
+                    <option value="3">Step 4: Technique Execution</option>
+                    <option value="4">Step 5: Final Hold</option>
                 </select>
-                <button class="success" id="btn-capture-ideal" onclick="captureIdealPose()" disabled>✋ Capture Ideal Pose</button>
+                <button class="success" id="btn-capture-ideal" onclick="captureIdealPose()" disabled>✋ Capture
+                    Now</button>
                 <button onclick="stopCapture()">⏹ Stop Camera</button>
             </div>
+            <p class="mono muted" style="font-size: 0.75rem; margin-top: 0.5rem;">Select a step → camera starts
+                automatically → hold hand steady for 3s → pose captured</p>
         </div>
 
         <div class="w-full flex" style="gap: 1rem; margin-top: 2rem;">
@@ -332,16 +484,20 @@
     <!-- Tab 2: Video AI -->
     <div id="tab-video" class="screen main-tab" style="max-width: 900px; margin: 0 auto;">
         <h2 class="orbitron w-full">Upload Demonstration Video</h2>
-        <p class="mono muted w-full" style="margin-bottom: 2rem;">AI extracts procedure steps + ideal hand landmarks automatically</p>
+        <p class="mono muted w-full" style="margin-bottom: 2rem;">AI extracts procedure steps + ideal hand landmarks
+            automatically</p>
 
         <div class="cfg-card w-full text-center">
-            <input type="file" id="video-upload" accept="video/*" onchange="handleVideoUpload(event)" style="display:none;">
+            <input type="file" id="video-upload" accept="video/*" onchange="handleVideoUpload(event)"
+                style="display:none;">
             <button class="primary" onclick="document.getElementById('video-upload').click()">Select Video File</button>
             <br>
-            <video id="demoVideo" controls style="display:none; max-width:100%; max-height:400px; border:1px solid var(--border); margin-top:1rem;"></video>
-            
+            <video id="demoVideo" controls
+                style="display:none; max-width:100%; max-height:400px; border:1px solid var(--border); margin-top:1rem;"></video>
+
             <div id="ai-pipeline-actions" style="display:none; margin-top: 1rem;">
-                <button class="primary w-full" id="btn-extract" onclick="extractProcedures()">🤖 Extract Steps + Ideal Landmarks via AI</button>
+                <button class="primary w-full" id="btn-extract" onclick="extractProcedures()">🤖 Extract Steps + Ideal
+                    Landmarks via AI</button>
                 <p id="extraction-status" class="mono text-cyan" style="margin-top: 1rem;"></p>
             </div>
         </div>
@@ -349,7 +505,8 @@
         <div id="ai-results" class="w-full" style="display: none; margin-top: 2rem;">
             <h3 class="orbitron" style="margin-bottom: 1rem;">Extracted Steps</h3>
             <div id="extracted-steps-container"></div>
-            <button class="primary w-full" style="margin-top: 1rem;" onclick="convertExtractedToBuilder()">Convert to Procedure Schema</button>
+            <button class="primary w-full" style="margin-top: 1rem;" onclick="convertExtractedToBuilder()">Convert to
+                Procedure Schema</button>
         </div>
     </div>
 
@@ -373,17 +530,32 @@
                     <p class="orbitron text-cyan" id="rm-acc" style="font-size: 1.5rem;"></p>
                 </div>
             </div>
-            
-            <table style="width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; border: 1px solid var(--border);" class="mono">
-                <tr><th style="border: 1px solid var(--border); padding: 0.5rem;">Date</th><td id="rm-date" style="border: 1px solid var(--border); padding: 0.5rem;"></td></tr>
-                <tr><th style="border: 1px solid var(--border); padding: 0.5rem;">Time Elapsed</th><td id="rm-dur" style="border: 1px solid var(--border); padding: 0.5rem;"></td></tr>
-                <tr><th style="border: 1px solid var(--border); padding: 0.5rem;">Errors</th><td id="rm-err" style="border: 1px solid var(--border); padding: 0.5rem;"></td></tr>
-                <tr><th style="border: 1px solid var(--border); padding: 0.5rem;">Fatigue Events</th><td id="rm-fat" style="border: 1px solid var(--border); padding: 0.5rem;"></td></tr>
+
+            <table
+                style="width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; border: 1px solid var(--border);"
+                class="mono">
+                <tr>
+                    <th style="border: 1px solid var(--border); padding: 0.5rem;">Date</th>
+                    <td id="rm-date" style="border: 1px solid var(--border); padding: 0.5rem;"></td>
+                </tr>
+                <tr>
+                    <th style="border: 1px solid var(--border); padding: 0.5rem;">Time Elapsed</th>
+                    <td id="rm-dur" style="border: 1px solid var(--border); padding: 0.5rem;"></td>
+                </tr>
+                <tr>
+                    <th style="border: 1px solid var(--border); padding: 0.5rem;">Errors</th>
+                    <td id="rm-err" style="border: 1px solid var(--border); padding: 0.5rem;"></td>
+                </tr>
+                <tr>
+                    <th style="border: 1px solid var(--border); padding: 0.5rem;">Fatigue Events</th>
+                    <td id="rm-fat" style="border: 1px solid var(--border); padding: 0.5rem;"></td>
+                </tr>
             </table>
 
             <div class="flex" style="gap: 1rem;">
                 <button class="primary w-full" onclick="downloadInstructorPDF()">Download PDF</button>
-                <button class="w-full" onclick="document.getElementById('report-modal').style.display='none'">Close</button>
+                <button class="w-full"
+                    onclick="document.getElementById('report-modal').style.display='none'">Close</button>
             </div>
         </div>
     </div>
@@ -396,11 +568,23 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             let key = localStorage.getItem('geminiApiKey');
-            if(!key) {
+            if (!key) {
                 key = PREFILLED_KEY;
                 localStorage.setItem('geminiApiKey', key);
             }
             document.getElementById('api-key-input').value = key;
+
+            // Auto-auth: skip login if coming from index.html with auth token
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('auth') === '1' || sessionStorage.getItem('instructorAuth') === 'true') {
+                sessionStorage.setItem('instructorAuth', 'true');
+                document.getElementById('screen-auth').style.display = 'none';
+                document.querySelector('nav').style.display = 'flex';
+                switchTab('tab-builder');
+            }
+
+            // Initialize capture step badges for default 5 steps
+            updateCaptureBadges();
         });
 
         // ==========================================
@@ -420,6 +604,7 @@
 
         function logout() {
             stopCapture();
+            sessionStorage.removeItem('instructorAuth');
             window.location.href = 'index.html';
         }
 
@@ -430,8 +615,13 @@
             document.querySelectorAll('.main-tab').forEach(t => t.style.display = 'none');
             document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
             document.getElementById(id).style.display = 'flex';
-            event.currentTarget.classList.add('active');
-            if(id === 'tab-reports') loadReports();
+            // Activate the correct nav tab
+            const tabMap = { 'tab-builder': 0, 'tab-video': 1, 'tab-reports': 2 };
+            const navTabs = document.querySelectorAll('.nav-tab');
+            if (tabMap[id] !== undefined && navTabs[tabMap[id]]) {
+                navTabs[tabMap[id]].classList.add('active');
+            }
+            if (id === 'tab-reports') loadReports();
         }
 
         function saveApiKey() {
@@ -452,7 +642,7 @@
             const div = document.createElement('div');
             div.className = 'cfg-card w-full';
             div.id = id;
-            
+
             const defName = mappedData ? mappedData.action_description : `Step ${stepCount}`;
             const defMin = mappedData && mappedData.estimated_angle_range ? mappedData.estimated_angle_range.min : 30;
             const defMax = mappedData && mappedData.estimated_angle_range ? mappedData.estimated_angle_range.max : 60;
@@ -476,9 +666,9 @@
                     <div>
                         <label class="mono muted">Required Zone</label>
                         <select class="b-zone">
-                            <option value="left" ${defZone==='left'?'selected':''}>Left</option>
-                            <option value="center" ${defZone==='center'?'selected':''}>Center</option>
-                            <option value="right" ${defZone==='right'?'selected':''}>Right</option>
+                            <option value="left" ${defZone === 'left' ? 'selected' : ''}>Left</option>
+                            <option value="center" ${defZone === 'center' ? 'selected' : ''}>Center</option>
+                            <option value="right" ${defZone === 'right' ? 'selected' : ''}>Right</option>
                         </select>
                     </div>
                     <div>
@@ -510,39 +700,94 @@
             if (mappedData && mappedData.ideal_landmarks) {
                 capturedIdealData[stepCount - 1] = mappedData.ideal_landmarks;
             }
+
+            // Auto-start camera when first step is added
+            if (stepCount === 1 && !captureRunning) {
+                setTimeout(() => {
+                    startCapture();
+                    console.log('[Auto] Camera auto-started after first step added');
+                }, 500);
+            }
         }
+
+        // Default 5 steps for the capture dropdown
+        const DEFAULT_CAPTURE_STEPS = [
+            'Tool Preparation',
+            'Hand Positioning',
+            'Grip Adjustment',
+            'Technique Execution',
+            'Final Hold'
+        ];
 
         function refreshCaptureStepList() {
             const sel = document.getElementById('capture-step-select');
-            sel.innerHTML = '<option value="">Select step to capture...</option>';
+            const currentVal = sel.value; // preserve selection
+            sel.innerHTML = '<option value="">— Select step to record —</option>';
+
+            // Use builder steps if they exist, otherwise use the 5 defaults
             const cards = document.querySelectorAll('#builder-steps .cfg-card');
-            cards.forEach((card, i) => {
-                const name = card.querySelector('.b-name')?.value || `Step ${i+1}`;
-                const opt = document.createElement('option');
-                opt.value = i;
-                opt.textContent = `Step ${i+1}: ${name}`;
-                sel.appendChild(opt);
-            });
+            if (cards.length > 0) {
+                cards.forEach((card, i) => {
+                    const name = card.querySelector('.b-name')?.value || `Step ${i + 1}`;
+                    const opt = document.createElement('option');
+                    opt.value = i;
+                    opt.textContent = `Step ${i + 1}: ${name}`;
+                    sel.appendChild(opt);
+                });
+            } else {
+                DEFAULT_CAPTURE_STEPS.forEach((name, i) => {
+                    const opt = document.createElement('option');
+                    opt.value = i;
+                    opt.textContent = `Step ${i + 1}: ${name}`;
+                    sel.appendChild(opt);
+                });
+            }
+
+            // Restore selection if still valid
+            if (currentVal !== '' && sel.querySelector(`option[value="${currentVal}"]`)) {
+                sel.value = currentVal;
+            }
             updateCaptureBadges();
+        }
+
+        // Called when a step is selected from the dropdown — auto-starts camera + recording
+        function onStepSelected() {
+            const sel = document.getElementById('capture-step-select');
+            if (sel.value === '') return; // nothing selected
+
+            const stepName = sel.selectedOptions[0]?.textContent || 'Step';
+            document.getElementById('capture-target-step').innerText = stepName;
+
+            // Auto-start camera if not already running
+            if (!captureRunning) {
+                startCapture();
+                console.log('[Auto] Camera started — step selected:', stepName);
+            }
+
+            // Reset steady timer for fresh countdown
+            handSteadyStartTime = null;
+            autoCaptureCountdown = 0;
+            console.log('[Auto] Now recording for:', stepName);
         }
 
         function updateCaptureBadges() {
             const container = document.getElementById('capture-step-badges');
             container.innerHTML = '';
             const cards = document.querySelectorAll('#builder-steps .cfg-card');
-            cards.forEach((_, i) => {
+            const stepCount = cards.length > 0 ? cards.length : DEFAULT_CAPTURE_STEPS.length;
+            for (let i = 0; i < stepCount; i++) {
                 const hasCaptured = capturedIdealData[i] !== undefined;
                 const badge = document.createElement('span');
                 badge.className = `step-capture-badge ${hasCaptured ? 'badge-captured' : 'badge-pending'}`;
-                badge.textContent = `Step ${i+1}: ${hasCaptured ? '✓ Captured' : 'Pending'}`;
+                badge.textContent = `Step ${i + 1}: ${hasCaptured ? '✓ Captured' : 'Pending'}`;
                 container.appendChild(badge);
-            });
+            }
         }
 
         function generateSchema() {
             const procName = document.getElementById('builder-proc-name').value || "New Procedure";
-            const domain = document.getElementById('builder-domain').value;
-            
+            const domain = 'general';
+
             const stepsDivs = document.querySelectorAll('#builder-steps .cfg-card');
             const steps = Array.from(stepsDivs).map((div, i) => {
                 const step = {
@@ -589,7 +834,7 @@
 
         function previewProcedure() {
             const sc = generateSchema();
-            alert("Preview:\n" + sc.steps.map((s, i) => `${i+1}. ${s.name} [${s.severity}] — Angle: ${s.requirements.grip_angle.min}°–${s.requirements.grip_angle.max}°, Zone: ${s.requirements.zone}${s.ideal_landmarks ? ' ✓ Ideal recorded' : ''}`).join('\n'));
+            alert("Preview:\n" + sc.steps.map((s, i) => `${i + 1}. ${s.name} [${s.severity}] — Angle: ${s.requirements.grip_angle.min}°–${s.requirements.grip_angle.max}°, Zone: ${s.requirements.zone}${s.ideal_landmarks ? ' ✓ Ideal recorded' : ''}`).join('\n'));
         }
 
         // ==========================================
@@ -606,13 +851,98 @@
 
         // MediaPipe standard hand connections
         const CAPTURE_CONNECTIONS = [
-            [0,1],[1,2],[2,3],[3,4],
-            [0,5],[5,6],[6,7],[7,8],
-            [0,9],[9,10],[10,11],[11,12],
-            [0,13],[13,14],[14,15],[15,16],
-            [0,17],[17,18],[18,19],[19,20],
-            [5,9],[9,13],[13,17]
+            [0, 1], [1, 2], [2, 3], [3, 4],
+            [0, 5], [5, 6], [6, 7], [7, 8],
+            [0, 9], [9, 10], [10, 11], [11, 12],
+            [0, 13], [13, 14], [14, 15], [15, 16],
+            [0, 17], [17, 18], [18, 19], [19, 20],
+            [5, 9], [9, 13], [13, 17]
         ];
+
+        // ==========================================
+        // AUTO-RECORDING: Detect hand → auto-capture after 3s hold
+        // ==========================================
+        let autoRecordingActive = false;
+        let autoRecordStartTime = null;
+        let autoCaptureCountdown = 0;
+        const AUTO_CAPTURE_HOLD_TIME = 3.0; // seconds to hold hand before auto-capture
+        let handSteadyStartTime = null;
+        let lastHandLandmarks = null;
+
+        function getHandSteadiness(currentLm, prevLm) {
+            // Compare current landmarks to previous — lower = steadier
+            if (!prevLm || !currentLm) return 999;
+            let totalDelta = 0;
+            for (let i = 0; i < Math.min(currentLm.length, prevLm.length); i++) {
+                totalDelta += Math.abs(currentLm[i].x - prevLm[i].x);
+                totalDelta += Math.abs(currentLm[i].y - prevLm[i].y);
+            }
+            return totalDelta / currentLm.length;
+        }
+
+        function autoSelectNextPendingStep() {
+            const stepSel = document.getElementById('capture-step-select');
+            for (let i = 0; i < stepSel.options.length; i++) {
+                const idx = stepSel.options[i].value;
+                if (idx !== '' && capturedIdealData[parseInt(idx)] === undefined) {
+                    stepSel.value = idx;
+                    return true;
+                }
+            }
+            return false; // all steps captured
+        }
+
+        function startAutoRecording() {
+            if (autoRecordingActive) return;
+            autoRecordingActive = true;
+            autoRecordStartTime = Date.now();
+            handSteadyStartTime = null;
+
+            // Auto-select first pending step if none selected
+            autoSelectNextPendingStep();
+
+            document.getElementById('capture-status').style.color = 'var(--danger)';
+            document.getElementById('capture-status').style.background = 'rgba(255,51,102,0.15)';
+            console.log('[Auto-Record] Recording started — hand detected');
+        }
+
+        function stopAutoRecording() {
+            if (!autoRecordingActive) return;
+            autoRecordingActive = false;
+            autoRecordStartTime = null;
+            handSteadyStartTime = null;
+            autoCaptureCountdown = 0;
+            document.getElementById('capture-status').style.background = 'rgba(0,0,0,0.7)';
+            console.log('[Auto-Record] Recording paused — hand lost');
+        }
+
+        function performAutoCapture() {
+            // Check if there's a step selected
+            const stepIdx = document.getElementById('capture-step-select').value;
+            if (stepIdx === '' || !captureLiveLandmarks) return;
+
+            // Use the existing captureIdealPose function
+            captureIdealPose();
+
+            console.log('[Auto-Record] Auto-captured ideal pose for step', stepIdx);
+
+            // Auto-advance to next pending step
+            const hasMore = autoSelectNextPendingStep();
+            if (hasMore) {
+                const stepName = document.getElementById('capture-step-select').selectedOptions[0]?.textContent || 'Next';
+                document.getElementById('capture-target-step').innerText = stepName;
+                console.log('[Auto-Record] Advanced to next step:', stepName);
+            } else {
+                console.log('[Auto-Record] All steps captured!');
+                document.getElementById('capture-status').innerText = '✓ ALL STEPS CAPTURED';
+                document.getElementById('capture-status').style.color = 'var(--success)';
+                document.getElementById('capture-status').style.background = 'rgba(0,255,157,0.15)';
+            }
+
+            // Reset steady timer for next capture
+            handSteadyStartTime = null;
+            autoCaptureCountdown = 0;
+        }
 
         function onCaptureResults(results) {
             captureCtx.save();
@@ -621,18 +951,72 @@
 
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const landmarks = results.multiHandLandmarks[0];
-                captureLiveLandmarks = landmarks.map(l => ({x: l.x, y: l.y, z: l.z}));
+                captureLiveLandmarks = landmarks.map(l => ({ x: l.x, y: l.y, z: l.z }));
 
                 // Draw live skeleton
                 drawConnectors(captureCtx, landmarks, HAND_CONNECTIONS, { color: '#00e5ff', lineWidth: 3 });
                 drawLandmarks(captureCtx, landmarks, { color: '#00ff9d', lineWidth: 1, radius: 3 });
 
-                document.getElementById('capture-status').innerText = 'TRACKING — 21 Landmarks';
-                document.getElementById('capture-status').style.color = 'var(--success)';
+                // Auto-start recording when hand is first detected
+                startAutoRecording();
+
+                // Check hand steadiness for auto-capture countdown
+                const steadiness = getHandSteadiness(captureLiveLandmarks, lastHandLandmarks);
+                lastHandLandmarks = captureLiveLandmarks.slice();
+
+                const stepIdx = document.getElementById('capture-step-select').value;
+                const allCaptured = stepIdx === '' && !autoSelectNextPendingStep();
+
+                if (stepIdx !== '' && steadiness < 0.05) {
+                    // Hand is steady — start/continue countdown
+                    if (!handSteadyStartTime) handSteadyStartTime = Date.now();
+                    autoCaptureCountdown = (Date.now() - handSteadyStartTime) / 1000;
+
+                    const remaining = Math.max(0, AUTO_CAPTURE_HOLD_TIME - autoCaptureCountdown);
+
+                    if (remaining > 0) {
+                        // Show countdown on canvas
+                        const elapsed = ((Date.now() - autoRecordStartTime) / 1000).toFixed(1);
+                        document.getElementById('capture-status').innerText = `● REC ${elapsed}s — HOLD STEADY: ${remaining.toFixed(1)}s`;
+                        document.getElementById('capture-status').style.color = 'var(--warn)';
+
+                        // Draw countdown ring on canvas
+                        const cx = captureCanvas.width / 2;
+                        const cy = captureCanvas.height / 2;
+                        const progress = autoCaptureCountdown / AUTO_CAPTURE_HOLD_TIME;
+                        captureCtx.strokeStyle = 'rgba(0, 255, 157, 0.6)';
+                        captureCtx.lineWidth = 6;
+                        captureCtx.beginPath();
+                        captureCtx.arc(cx, cy, 50, -Math.PI / 2, -Math.PI / 2 + (progress * 2 * Math.PI));
+                        captureCtx.stroke();
+
+                        // Center text
+                        captureCtx.font = 'bold 24px Orbitron';
+                        captureCtx.fillStyle = 'rgba(0, 255, 157, 0.8)';
+                        captureCtx.textAlign = 'center';
+                        captureCtx.fillText(remaining.toFixed(1) + 's', cx, cy + 8);
+                        captureCtx.textAlign = 'start';
+                    }
+
+                    // Auto-capture when countdown reaches zero
+                    if (autoCaptureCountdown >= AUTO_CAPTURE_HOLD_TIME) {
+                        performAutoCapture();
+                    }
+                } else if (!allCaptured) {
+                    // Hand is moving — reset countdown
+                    handSteadyStartTime = null;
+                    autoCaptureCountdown = 0;
+                    const elapsed = ((Date.now() - autoRecordStartTime) / 1000).toFixed(1);
+                    document.getElementById('capture-status').innerText = `● REC ${elapsed}s — TRACKING (hold still to capture)`;
+                    document.getElementById('capture-status').style.color = 'var(--danger)';
+                }
+
                 document.getElementById('btn-capture-ideal').disabled = false;
             } else {
                 captureLiveLandmarks = null;
-                document.getElementById('capture-status').innerText = 'NO HAND DETECTED';
+                lastHandLandmarks = null;
+                stopAutoRecording();
+                document.getElementById('capture-status').innerText = 'NO HAND DETECTED — Show hand to auto-record';
                 document.getElementById('capture-status').style.color = 'var(--warn)';
                 document.getElementById('btn-capture-ideal').disabled = true;
             }
@@ -734,7 +1118,7 @@
         // ==========================================
         function handleVideoUpload(e) {
             const file = e.target.files[0];
-            if(!file) return;
+            if (!file) return;
             const url = URL.createObjectURL(file);
             const vid = document.getElementById('demoVideo');
             vid.src = url;
@@ -746,18 +1130,18 @@
 
         async function extractProcedures() {
             const apiKey = localStorage.getItem('geminiApiKey');
-            if(!apiKey) return alert("Please save your Gemini API Key in settings first.");
-            
+            if (!apiKey) return alert("Please save your Gemini API Key in settings first.");
+
             const video = document.getElementById('demoVideo');
             const status = document.getElementById('extraction-status');
             const btn = document.getElementById('btn-extract');
-            
+
             btn.disabled = true;
             status.innerText = "Extracting frames + hand landmarks...";
-            
+
             const dur = video.duration;
-            const timestamps = dur > 9 ? [dur*0.2, dur*0.5, dur*0.8] : [dur*0.5];
-            
+            const timestamps = dur > 9 ? [dur * 0.2, dur * 0.5, dur * 0.8] : [dur * 0.5];
+
             const offCanvas = document.createElement('canvas');
             const offCtx = offCanvas.getContext('2d');
             offCanvas.width = 640; offCanvas.height = 360;
@@ -777,22 +1161,22 @@
             });
             videoHands.onResults(r => {
                 if (r.multiHandLandmarks && r.multiHandLandmarks.length > 0) {
-                    videoLandmarks = r.multiHandLandmarks[0].map(l => ({x: l.x, y: l.y, z: l.z}));
+                    videoLandmarks = r.multiHandLandmarks[0].map(l => ({ x: l.x, y: l.y, z: l.z }));
                 } else {
                     videoLandmarks = null;
                 }
             });
 
             for (let i = 0; i < timestamps.length; i++) {
-                status.innerText = `Frame ${i+1}/${timestamps.length}: Seeking...`;
-                
+                status.innerText = `Frame ${i + 1}/${timestamps.length}: Seeking...`;
+
                 video.currentTime = timestamps[i];
                 await new Promise(r => { video.onseeked = r; setTimeout(r, 600); });
-                
+
                 offCtx.drawImage(video, 0, 0, offCanvas.width, offCanvas.height);
 
                 // Run MediaPipe on this frame to extract landmarks
-                status.innerText = `Frame ${i+1}/${timestamps.length}: Extracting hand landmarks...`;
+                status.innerText = `Frame ${i + 1}/${timestamps.length}: Extracting hand landmarks...`;
                 videoLandmarks = null;
                 await videoHands.send({ image: offCanvas });
                 // Brief wait for async result
@@ -801,13 +1185,13 @@
                 const frameLandmarks = videoLandmarks ? videoLandmarks.slice() : null;
 
                 // Also send to Gemini for text analysis
-                status.innerText = `Frame ${i+1}/${timestamps.length}: Analyzing with Gemini Vision...`;
+                status.innerText = `Frame ${i + 1}/${timestamps.length}: Analyzing with Gemini Vision...`;
                 const base64Data = offCanvas.toDataURL('image/jpeg', 0.8).split(',')[1];
-                
+
                 try {
-                    const prompt = `This is frame ${i+1} of a vocational skill training video. Analyze the hand/tool position visible. Return ONLY valid JSON (do not use markdown blocks):
+                    const prompt = `This is frame ${i + 1} of a vocational skill training video. Analyze the hand/tool position visible. Return ONLY valid JSON (do not use markdown blocks):
 {
-  "step_number": ${i+1},
+  "step_number": ${i + 1},
   "action_description": "short string action",
   "instruction_for_student": "short instructional string",
   "estimated_angle_range": {"min": 30, "max": 60},
@@ -815,17 +1199,17 @@
 }`;
                     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
                         method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             contents: [{
                                 parts: [
-                                    {inline_data: {mime_type: "image/jpeg", data: base64Data}},
-                                    {text: prompt}
+                                    { inline_data: { mime_type: "image/jpeg", data: base64Data } },
+                                    { text: prompt }
                                 ]
                             }]
                         })
                     });
-                    
+
                     const data = await res.json();
                     let textResult = data.candidates[0].content.parts[0].text;
                     textResult = textResult.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -840,10 +1224,10 @@
 
             status.innerText = `Processing complete! ${extractedData.length} steps extracted.`;
             btn.disabled = false;
-            
+
             const cont = document.getElementById('extracted-steps-container');
             cont.innerHTML = '';
-            
+
             extractedData.forEach(d => {
                 const card = document.createElement('div');
                 card.className = "cfg-card";
@@ -858,14 +1242,14 @@
                 `;
                 cont.appendChild(card);
             });
-            
+
             document.getElementById('ai-results').style.display = 'block';
             window._lastExtractedData = extractedData;
         }
 
         function convertExtractedToBuilder() {
             const data = window._lastExtractedData;
-            if(!data) return;
+            if (!data) return;
             switchTab('tab-builder');
             document.getElementById('builder-steps').innerHTML = '';
             document.getElementById('builder-proc-name').value = "AI Generated Procedure";
@@ -881,10 +1265,10 @@
         // TAB 3: REPORTS
         // ==========================================
         const DEMO_REPORTS = [
-            {name: "Priya Sharma", procedure: "Surgical Needle Grip", accuracy: 78, date: "2026-04-03", duration: "320s", errors: 4, fatigueEvents: 0},
-            {name: "Rahul Mehta", procedure: "IV Cannula Insertion", accuracy: 52, date: "2026-04-02", duration: "250s", errors: 8, fatigueEvents: 2},
-            {name: "Ananya Singh", procedure: "Dental Probe Hold", accuracy: 91, date: "2026-04-01", duration: "180s", errors: 1, fatigueEvents: 0},
-            {name: "Karan Patel", procedure: "Wire Stripping Safety", accuracy: 67, date: "2026-04-03", duration: "210s", errors: 6, fatigueEvents: 1}
+            { name: "Priya Sharma", procedure: "Surgical Needle Grip", accuracy: 78, date: "2026-04-03", duration: "320s", errors: 4, fatigueEvents: 0 },
+            { name: "Rahul Mehta", procedure: "IV Cannula Insertion", accuracy: 52, date: "2026-04-02", duration: "250s", errors: 8, fatigueEvents: 2 },
+            { name: "Ananya Singh", procedure: "Dental Probe Hold", accuracy: 91, date: "2026-04-01", duration: "180s", errors: 1, fatigueEvents: 0 },
+            { name: "Karan Patel", procedure: "Wire Stripping Safety", accuracy: 67, date: "2026-04-03", duration: "210s", errors: 6, fatigueEvents: 1 }
         ];
 
         let currentModalReport = null;
@@ -895,23 +1279,23 @@
             const allReports = [...DEMO_REPORTS];
             try {
                 const ls = JSON.parse(localStorage.getItem('lastSession'));
-                if(ls) {
+                if (ls) {
                     allReports.unshift({
                         name: "Guest Student",
                         procedure: ls.procedure,
                         accuracy: ls.accuracy,
                         date: new Date(ls.date).toISOString().split('T')[0],
-                        duration: Math.round(ls.duration/1000) + 's',
+                        duration: Math.round(ls.duration / 1000) + 's',
                         errors: ls.errors ? ls.errors.length : 0,
                         fatigueEvents: ls.fatigueEvents ? ls.fatigueEvents.length : 0
                     });
                 }
-            } catch(e) {}
+            } catch (e) { }
 
             allReports.forEach(r => {
                 let colorClass = 'var(--success)';
-                if(r.accuracy < 85) colorClass = 'var(--warn)';
-                if(r.accuracy < 60) colorClass = 'var(--danger)';
+                if (r.accuracy < 85) colorClass = 'var(--warn)';
+                if (r.accuracy < 60) colorClass = 'var(--danger)';
 
                 const card = document.createElement('div');
                 card.className = 'student-card';
@@ -944,7 +1328,7 @@
         }
 
         function downloadInstructorPDF() {
-            if(!currentModalReport) return;
+            if (!currentModalReport) return;
             const r = currentModalReport;
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
@@ -960,8 +1344,9 @@
             doc.text(`Duration: ${r.duration}`, 10, 68);
             doc.text(`Total Errors Recorded: ${r.errors}`, 10, 76);
             doc.text(`Fatigue Events: ${r.fatigueEvents}`, 10, 84);
-            doc.save(`${r.name.replace(' ','_')}_Report.pdf`);
+            doc.save(`${r.name.replace(' ', '_')}_Report.pdf`);
         }
     </script>
 </body>
+
 </html>
