@@ -1125,6 +1125,10 @@
                 });
                 handsConfigured = true;
             }
+            // Ensure video element is set up correctly
+            videoElement.autoplay = true;
+            videoElement.playsInline = true;
+            videoElement.muted = true;
             camera.start();
             sessionLoop();
         }
@@ -1191,18 +1195,29 @@
         // MEDIAPIPE & MATH
         // ==========================================
         function onResults(results) {
-            console.log('[onResults] frame');
+            // Sync canvas resolution to its actual displayed size every frame
+            const rect = sessionCanvas.getBoundingClientRect();
+            if (rect.width > 0 && sessionCanvas.width !== Math.round(rect.width)) {
+                sessionCanvas.width = Math.round(rect.width);
+                sessionCanvas.height = Math.round(rect.height);
+            }
+
             const ctx = sessionCanvas.getContext('2d');
             const W = sessionCanvas.width;
             const H = sessionCanvas.height;
 
             ctx.clearRect(0, 0, W, H);
 
-            ctx.save();
-            ctx.translate(sessionCanvas.width, 0);
-            ctx.scale(-1, 1);
-            ctx.drawImage(results.image, 0, 0, sessionCanvas.width, sessionCanvas.height);
-            ctx.restore();
+            // Draw mirrored frame — prefer results.image, fall back to videoElement
+            const imgSource = (results && results.image) ? results.image : videoElement;
+            console.log('landmarks:', results.multiHandLandmarks ? results.multiHandLandmarks.length : 'none');
+            if (imgSource && (imgSource.videoWidth > 0 || imgSource.width > 0)) {
+                ctx.save();
+                ctx.translate(W, 0);
+                ctx.scale(-1, 1);
+                ctx.drawImage(imgSource, 0, 0, W, H);
+                ctx.restore();
+            }
 
             if (!results.multiHandLandmarks || !results.multiHandLandmarks[0]) {
                 // No hand detected — still draw ideal ghost so student can see target
