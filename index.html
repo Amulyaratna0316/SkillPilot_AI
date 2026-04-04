@@ -679,8 +679,8 @@
                 <p id="ai-coach-text" class="mono" style="margin-top: 0.5rem;">Awaiting session start...</p>
             </div>
 
-            <div id="fatigueBanner" class="fatigue-banner">
-                ⚠ FATIGUE DETECTED<br>Rest <span id="fatigueCountdown">30</span>s
+            <div id="fatigue-banner" class="fatigue-banner">
+                ⚠ FATIGUE DETECTED<br>Rest <span id="fatigue-timer">30</span>s
             </div>
         </div>
 
@@ -1052,14 +1052,9 @@
         let personalScaleUnit = null;
         let scaleFrames = [];
         let wristHistory = [];
-        let fatigueScoreHistory = [];
+        let fatigueHistory = [];
         let fatigueDetected = false;
-        let fatigueRestCountdown = 0;
-        let fatigueRestInterval = null;
-        let consecutiveFatigueFrames = 0;
-        const FATIGUE_FRAME_THRESHOLD = 45;
-        const FATIGUE_SCORE_THRESHOLD = 0.015;
-        const FATIGUE_RECOVERY_THRESHOLD = 0.008;
+        let fatigueRestTimer = null;
 
         let lastGeminiCall = 0;
 
@@ -1091,11 +1086,8 @@
             personalScaleUnit = null;
             scaleFrames = [];
             wristHistory = [];
-            fatigueScoreHistory = [];
+            fatigueHistory = [];
             fatigueDetected = false;
-            fatigueRestCountdown = 0;
-            fatigueRestInterval = null;
-            consecutiveFatigueFrames = 0;
 
             document.getElementById('api-key-input').value = localStorage.getItem('geminiApiKey') || '';
 
@@ -1117,18 +1109,11 @@
                 handsTracker.onResults(onResults);
 
                 camera = new Camera(videoElement, {
-                    onFrame: async () => {
-                        await handsTracker.send({ image: videoElement });
-                    },
-                    width: 640,
-                    height: 480
+                    onFrame: async () => { if (sessionActive && !sessionPaused) await handsTracker.send({ image: videoElement }); },
+                    width: 640, height: 480
                 });
                 handsConfigured = true;
             }
-            // Ensure video element is set up correctly
-            videoElement.autoplay = true;
-            videoElement.playsInline = true;
-            videoElement.muted = true;
             camera.start();
             sessionLoop();
         }
@@ -1188,6 +1173,7 @@
         }
 
         function resetSession() {
+            camera.stop();
             startSession(selectedProcedure);
         }
 
@@ -1195,122 +1181,39 @@
         // MEDIAPIPE & MATH
         // ==========================================
         function onResults(results) {
-            // Sync canvas resolution to its actual displayed size every frame
-            const rect = sessionCanvas.getBoundingClientRect();
-            if (rect.width > 0 && sessionCanvas.width !== Math.round(rect.width)) {
-                sessionCanvas.width = Math.round(rect.width);
-                sessionCanvas.height = Math.round(rect.height);
-            }
+            if (!sessionActive || sessionPaused) return;
 
-            const ctx = sessionCanvas.getContext('2d');
-            const W = sessionCanvas.width;
-            const H = sessionCanvas.height;
+            // ALWAYS draw the video frame so the camera feed never freezes,
+            // even during a fatigue rest period.
+            // Flip the context for "natural" (non-mirrored) view
+            ctx.save();
+            ctx.translate(sessionCanvas.width, 0);
+            ctx.scale(-1, 1);
+            ctx.clearRect(0, 0, sessionCanvas.width, sessionCanvas.height);
+            ctx.drawImage(results.image, 0, 0, sessionCanvas.width, sessionCanvas.height);
 
-            ctx.clearRect(0, 0, W, H);
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const landmarks = results.multiHandLandmarks[0];
 
-            // Draw mirrored frame — prefer results.image, fall back to videoElement
-            const imgSource = (results && results.image) ? results.image : videoElement;
-            console.log('landmarks:', results.multiHandLandmarks ? results.multiHandLandmarks.length : 'none');
-            if (imgSource && (imgSource.videoWidth > 0 || imgSource.width > 0)) {
-                ctx.save();
-                ctx.translate(W, 0);
-                ctx.scale(-1, 1);
-                ctx.drawImage(imgSource, 0, 0, W, H);
+                // Draw skeleton in the same flipped context so it aligns with the video
+                drawConnectors(ctx, landmarks, HAND_CONNECTIONS, { color: '#00FF00', lineWidth: 2 });
+                drawLandmarks(ctx, landmarks, { color: '#FF0000', lineWidth: 1, radius: 2 });
+
+                // Restore context BEFORE processing logic because the state machine 
+                // EXPECTS natural coordinates (0-1) where 0 is left. 
+                // Since the video was mirrored, x=0 was on the right. 
+                // By flipping the draw context, we've aligned the visual.
+                // The actual Landmark data is already in a coordinate system 
+                // where we just need to ensure our zone logic matches.
+                ctx.restore();
+
+                // Only drive the state machine when NOT in fatigue rest.
+                if (!fatigueDetected) {
+                    processFrame(landmarks);
+                }
+            } else {
                 ctx.restore();
             }
-
-            if (!results.multiHandLandmarks || !results.multiHandLandmarks[0]) {
-                // No hand detected — still draw ideal ghost so student can see target
-                if (sessionActive && typeof currentStepIndex !== 'undefined') {
-                    const step = currentProcedure?.steps?.[currentStepIndex];
-                    if (step) drawIdealGhost(null, step, false, sessionPaused);
-                }
-                return;
-            }
-
-            let landmarks = results.multiHandLandmarks[0];
-            landmarks = mirrorLandmarks(landmarks, W);
-
-            // ── STEP 2: Always draw live skeleton (never skip this) ──
-            drawLiveSkeleton(landmarks, ctx, W, H);
-
-            // ── STEP 3: Always draw ideal ghost (NEVER skip — even during fatigue) ──
-            if (sessionActive && typeof currentStepIndex !== 'undefined') {
-                const step = currentProcedure?.steps?.[currentStepIndex];
-                if (step) {
-                    // During fatigue rest, show ideal ghost in pulsing cyan 
-                    // so student can study correct position while resting
-                    drawIdealGhost(landmarks, step, false, sessionPaused);
-                }
-            }
-
-            // ── STEP 4: Update fatigue (always runs) ──
-            updateFatigue(landmarks);
-
-            // ── STEP 5: Process procedure logic ONLY if not paused ──
-            if (!sessionPaused && sessionActive) {
-                processFrame(landmarks);
-            }
-        }
-
-        // Mirror landmarks to match flipped video
-        function mirrorLandmarks(landmarks, canvasWidth) {
-            return landmarks.map(lm => ({
-                x: 1 - lm.x,   // flip x axis
-                y: lm.y,        // y stays same
-                z: lm.z         // z stays same
-            }));
-        }
-
-        function drawLiveSkeleton(landmarks, ctx, W, H) {
-            // Joint group colors
-            const colors = {
-                wrist: '#ffffff',
-                thumb: '#ffc233',
-                index: '#00e5ff',
-                middle: '#00ff9d',
-                ring: '#ff9500',
-                pinky: '#bf7fff'
-            };
-
-            // Connections: [from, to] landmark index pairs
-            const connections = [
-                [0, 1], [1, 2], [2, 3], [3, 4],         // thumb
-                [0, 5], [5, 6], [6, 7], [7, 8],         // index
-                [0, 9], [9, 10], [10, 11], [11, 12],    // middle
-                [0, 13], [13, 14], [14, 15], [15, 16],  // ring
-                [0, 17], [17, 18], [18, 19], [19, 20],  // pinky
-                [5, 9], [9, 13], [13, 17]               // palm
-            ];
-
-            // Draw connections
-            ctx.lineWidth = 2;
-            connections.forEach(([a, b]) => {
-                const lmA = landmarks[a];
-                const lmB = landmarks[b];
-                ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-                ctx.beginPath();
-                ctx.moveTo(lmA.x * W, lmA.y * H);
-                ctx.lineTo(lmB.x * W, lmB.y * H);
-                ctx.stroke();
-            });
-
-            // Draw landmark dots with group colors
-            const getColor = (i) => {
-                if (i === 0) return colors.wrist;
-                if (i <= 4) return colors.thumb;
-                if (i <= 8) return colors.index;
-                if (i <= 12) return colors.middle;
-                if (i <= 16) return colors.ring;
-                return colors.pinky;
-            };
-
-            landmarks.forEach((lm, i) => {
-                ctx.beginPath();
-                ctx.arc(lm.x * W, lm.y * H, i === 0 ? 6 : 4, 0, 2 * Math.PI);
-                ctx.fillStyle = getColor(i);
-                ctx.fill();
-            });
         }
 
         function updateScaleUnit(landmarks) {
@@ -1335,85 +1238,64 @@
         }
 
         function getHandZone(landmarks) {
-            // landmarks are already mirrored — x=0 is user's left, x=1 is user's right
             const wristX = landmarks[0].x;
-            if (wristX < 0.33) return 'LEFT';
-            if (wristX > 0.66) return 'RIGHT';
+            if (wristX < 0.33) return 'LEFT'; // natural coordinate system: 0-0.33 is left
+            if (wristX > 0.66) return 'RIGHT'; // natural coordinate system: 0.66-1 is right
             return 'CENTER';
         }
 
         // ==========================================
-        // FATIGUE DETECTION
+        // FATIGUE DETECTION (non-blocking, try/catch guarded)
         // ==========================================
         function updateFatigue(landmarks) {
-            if (!landmarks || !landmarks[0]) return 0;
+            try {
+                const wrist = landmarks[0];
+                wristHistory.push({ x: wrist.x, y: wrist.y });
+                if (wristHistory.length > 30) wristHistory.shift();
 
-            const wrist = landmarks[0];
+                if (wristHistory.length < 30) return 0;
 
-            // Add to rolling 30-frame window
-            wristHistory.push({ x: wrist.x, y: wrist.y });
-            if (wristHistory.length > 30) wristHistory.shift();
+                const meanX = wristHistory.reduce((s, p) => s + p.x, 0) / 30;
+                const meanY = wristHistory.reduce((s, p) => s + p.y, 0) / 30;
+                const varX = wristHistory.reduce((s, p) => s + Math.pow(p.x - meanX, 2), 0) / 30;
+                const varY = wristHistory.reduce((s, p) => s + Math.pow(p.y - meanY, 2), 0) / 30;
+                const fatigueScore = (Math.sqrt(varX) + Math.sqrt(varY)) / 2;
 
-            // Need full 30 frames before calculating
-            if (wristHistory.length < 30) {
-                updateFatigueChart(0);
+                if (!isFinite(fatigueScore)) return 0; // guard against NaN / Infinity
+
+                fatigueHistory.push(fatigueScore);
+                if (fatigueHistory.length > 60) fatigueHistory.shift();
+
+                if (fatigueScore > 0.015 && !fatigueDetected) {
+                    fatigueDetected = true;
+                    // Non-blocking: update DOM instead of alert()
+                    triggerFatigueAlert();
+                }
+
+                drawFatigueChart(fatigueHistory);
+                if (frameCount % 60 === 0) console.log("Fatigue Score:", fatigueScore.toFixed(4));
+                return fatigueScore;
+            } catch (e) {
+                console.warn('[Fatigue] calculation error (non-fatal):', e.message);
                 return 0;
             }
-
-            // Standard deviation of x and y
-            const meanX = wristHistory.reduce((s, p) => s + p.x, 0) / 30;
-            const meanY = wristHistory.reduce((s, p) => s + p.y, 0) / 30;
-            const varX = wristHistory.reduce((s, p) => s + Math.pow(p.x - meanX, 2), 0) / 30;
-            const varY = wristHistory.reduce((s, p) => s + Math.pow(p.y - meanY, 2), 0) / 30;
-            const fatigueScore = (Math.sqrt(varX) + Math.sqrt(varY)) / 2;
-
-            // Store for chart
-            fatigueScoreHistory.push(fatigueScore);
-            if (fatigueScoreHistory.length > 60) fatigueScoreHistory.shift();
-
-            // Update chart
-            updateFatigueChart(fatigueScore);
-
-            // ── CONSECUTIVE FRAME COUNTING (prevents false positives) ──
-            if (fatigueScore > FATIGUE_SCORE_THRESHOLD) {
-                consecutiveFatigueFrames++;
-            } else {
-                // Reset consecutive count if score drops
-                consecutiveFatigueFrames = Math.max(0, consecutiveFatigueFrames - 2);
-            }
-
-            // Only trigger fatigue after sustained high score
-            if (consecutiveFatigueFrames >= FATIGUE_FRAME_THRESHOLD && !fatigueDetected) {
-                fatigueDetected = true;
-                consecutiveFatigueFrames = 0;
-                triggerFatigueAlert();
-            }
-
-            // Auto-clear fatigue after rest if score has recovered
-            if (fatigueDetected && fatigueRestCountdown <= 0
-                && fatigueScore < FATIGUE_RECOVERY_THRESHOLD) {
-                fatigueDetected = false;
-                hideFatigueBanner();
-            }
-
-            return fatigueScore;
         }
 
-        function updateFatigueChart(fatigueScore) {
+        function drawFatigueChart(history) {
             const fCanvas = document.getElementById('fatigueCanvas');
             const fCtx = fCanvas.getContext('2d');
             fCtx.clearRect(0, 0, fCanvas.width, fCanvas.height);
 
             fCtx.strokeStyle = 'rgba(255, 51, 102, 0.5)';
             fCtx.beginPath();
-            fCtx.moveTo(0, fCanvas.height - (FATIGUE_SCORE_THRESHOLD / 0.03) * fCanvas.height);
-            fCtx.lineTo(fCanvas.width, fCanvas.height - (FATIGUE_SCORE_THRESHOLD / 0.03) * fCanvas.height);
+            fCtx.moveTo(0, fCanvas.height - (0.015 / 0.03) * fCanvas.height);
+            fCtx.lineTo(fCanvas.width, fCanvas.height - (0.015 / 0.03) * fCanvas.height);
             fCtx.stroke();
 
             fCtx.strokeStyle = '#00e5ff';
             fCtx.beginPath();
             const stepX = fCanvas.width / 60;
-            fatigueScoreHistory.forEach((val, i) => {
+            history.forEach((val, i) => {
                 const y = fCanvas.height - Math.min((val / 0.03) * fCanvas.height, fCanvas.height);
                 if (i === 0) fCtx.moveTo(i * stepX, y);
                 else fCtx.lineTo(i * stepX, y);
@@ -1422,50 +1304,20 @@
         }
 
         function triggerFatigueAlert() {
-            // Show banner
-            const banner = document.getElementById('fatigueBanner');
-            if (banner) {
-                banner.style.display = 'flex';
-            }
+            fatigueEvents.push(Date.now() - sessionStartTime);
+            document.getElementById('fatigue-banner').style.display = 'block';
+            let timeLeft = 30;
+            document.getElementById('fatigue-timer').innerText = timeLeft;
 
-            // Pause SCORING only — camera and canvas keep running
-            sessionPaused = true;
-
-            // Start 30-second rest countdown
-            fatigueRestCountdown = 30;
-            const countdownEl = document.getElementById('fatigueCountdown');
-            if (countdownEl) countdownEl.textContent = fatigueRestCountdown + 's';
-
-            if (fatigueRestInterval) clearInterval(fatigueRestInterval);
-
-            fatigueRestInterval = setInterval(() => {
-                fatigueRestCountdown--;
-                if (countdownEl) countdownEl.textContent = fatigueRestCountdown + 's';
-
-                if (fatigueRestCountdown <= 0) {
-                    clearInterval(fatigueRestInterval);
-                    fatigueRestInterval = null;
-                    sessionPaused = false;
+            fatigueRestTimer = setInterval(() => {
+                timeLeft--;
+                document.getElementById('fatigue-timer').innerText = timeLeft;
+                if (timeLeft <= 0) {
+                    clearInterval(fatigueRestTimer);
+                    document.getElementById('fatigue-banner').style.display = 'none';
                     fatigueDetected = false;
-                    consecutiveFatigueFrames = 0;
-                    wristHistory = []; // reset window after rest
-                    hideFatigueBanner();
                 }
             }, 1000);
-
-            // Log fatigue event
-            if (typeof fatigueEvents !== 'undefined') {
-                fatigueEvents.push({
-                    timestamp: typeof sessionStartTime !== 'undefined'
-                        ? Date.now() - sessionStartTime : 0,
-                    score: fatigueScoreHistory[fatigueScoreHistory.length - 1] || 0
-                });
-            }
-        }
-
-        function hideFatigueBanner() {
-            const banner = document.getElementById('fatigueBanner');
-            if (banner) banner.style.display = 'none';
         }
 
         // ==========================================
@@ -1497,7 +1349,11 @@
                 });
             }
 
+            // ── FATIGUE (non-blocking, guarded) ──
+            const fatigueScore = updateFatigue(landmarks);
+
             updateParameterPanel(angle, step, zone, allOk);
+            drawIdealGhost(landmarks, step, allOk);
 
             if (allOk) {
                 if (!dwellStartTime) dwellStartTime = Date.now();
@@ -1819,27 +1675,27 @@
         }
 
         // ----- 2D FALLBACK: Ghost skeleton drawn on sessionCanvas -----
-        function draw2DGhostHand(idealLm, isCorrect, isPaused = false) {
+        function draw2DGhostHand(idealLm, isCorrect) {
             const W = sessionCanvas.width;
             const H = sessionCanvas.height;
-            // During fatigue rest: ghost pulses brighter cyan to guide student
-            // During normal session: ghost is semi-transparent blue
-            const ghostColor = isPaused
-                ? 'rgba(0, 229, 255, 0.7)'   // bright cyan during rest — study this position
-                : 'rgba(0, 150, 255, 0.35)'; // normal semi-transparent blue
-
-            const ghostStroke = isPaused
-                ? 'rgba(0, 229, 255, 0.5)'
-                : 'rgba(0, 150, 255, 0.25)';
+            const lineColor = isCorrect
+                ? 'rgba(0, 255, 157, 0.5)'
+                : 'rgba(255, 51, 102, 0.5)';
+            const dotColor = isCorrect
+                ? 'rgba(0, 255, 157, 0.7)'
+                : 'rgba(255, 51, 102, 0.7)';
+            const glowColor = isCorrect
+                ? 'rgba(0, 255, 157, 0.25)'
+                : 'rgba(255, 51, 102, 0.25)';
 
             ctx.save();
 
             // Glow effect
-            ctx.shadowColor = ghostStroke;
+            ctx.shadowColor = glowColor;
             ctx.shadowBlur = 12;
 
             // Draw skeleton connections (dashed)
-            ctx.strokeStyle = ghostStroke;
+            ctx.strokeStyle = lineColor;
             ctx.lineWidth = 3;
             ctx.setLineDash([6, 4]);
             GHOST_CONNECTIONS.forEach(([a, b]) => {
@@ -1852,7 +1708,7 @@
             // Draw landmark dots (solid)
             ctx.setLineDash([]);
             ctx.shadowBlur = 6;
-            ctx.fillStyle = ghostColor;
+            ctx.fillStyle = dotColor;
             idealLm.forEach(p => {
                 ctx.beginPath();
                 ctx.arc(p.x * W, p.y * H, 4, 0, Math.PI * 2);
@@ -1861,7 +1717,9 @@
 
             // Draw palm fill (semi-transparent polygon)
             const palmIndices = [0, 5, 9, 13, 17];
-            ctx.fillStyle = ghostColor;
+            ctx.fillStyle = isCorrect
+                ? 'rgba(0, 255, 157, 0.08)'
+                : 'rgba(255, 51, 102, 0.08)';
             ctx.shadowBlur = 0;
             ctx.beginPath();
             ctx.moveTo(idealLm[palmIndices[0]].x * W, idealLm[palmIndices[0]].y * H);
@@ -1873,28 +1731,16 @@
 
             // Label
             ctx.font = '11px Orbitron';
-            ctx.fillStyle = ghostColor;
+            ctx.fillStyle = isCorrect ? 'rgba(0, 255, 157, 0.8)' : 'rgba(255, 51, 102, 0.8)';
             ctx.shadowBlur = 0;
             const labelX = idealLm[0].x * W;
             const labelY = idealLm[0].y * H + 20;
             ctx.fillText(isCorrect ? '✓ CORRECT POSITION' : '✗ ADJUST HAND', labelX - 40, labelY);
 
-            if (isPaused) {
-                ctx.font = '13px Rajdhani';
-                ctx.fillStyle = '#00e5ff';
-                ctx.textAlign = 'center';
-                ctx.fillText(
-                    '← Study this position during rest →',
-                    sessionCanvas.width / 2,
-                    sessionCanvas.height - 16
-                );
-                ctx.textAlign = 'left';
-            }
-
             ctx.restore();
         }
 
-        function drawIdealGhost(currentLandmarks, step, isCorrect, isPaused = false) {
+        function drawIdealGhost(currentLandmarks, step, isCorrect) {
             // Use instructor-recorded landmarks if available, otherwise generate
             const rawIdealLm = step.ideal_landmarks || generateIdealLandmarks(step);
 
@@ -1911,7 +1757,7 @@
 
             // Always draw the 2D skeleton overlay on the session canvas too
             // (provides immediate visual guidance regardless of 3D state)
-            draw2DGhostHand(idealLm, isCorrect, isPaused);
+            draw2DGhostHand(idealLm, isCorrect);
         }
 
 
